@@ -1,0 +1,250 @@
+openapi: 3.1.0
+info:
+  title: CEG DEV HUB API
+  version: 1.0.0
+  description: Public hackathon discovery endpoints for CEG DEV HUB.
+servers:
+  - url: http://localhost:5000/api/v1
+paths:
+  /hackathons:
+    get:
+      summary: Search published hackathons
+      description: Returns published listings only. All supplied filters are combined.
+      parameters:
+        - in: query
+          name: q
+          schema: { type: string, maxLength: 120 }
+          description: Search event name, organizer, description, and required skills.
+        - in: query
+          name: location
+          schema: { type: string, maxLength: 200 }
+        - in: query
+          name: mode
+          schema: { type: string, enum: [ONLINE, OFFLINE, HYBRID] }
+        - in: query
+          name: domain
+          schema:
+            type: string
+            enum: [AI/ML, Web Development, Mobile Development, Blockchain, Cybersecurity, IoT, Cloud, Data Science, AR/VR, Open Innovation]
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [UPCOMING, ONGOING, REGISTRATION_OPEN, REGISTRATION_CLOSED]
+        - in: query
+          name: startAfter
+          schema: { type: string, format: date-time }
+        - in: query
+          name: startBefore
+          schema: { type: string, format: date-time }
+        - in: query
+          name: endAfter
+          schema: { type: string, format: date-time }
+        - in: query
+          name: endBefore
+          schema: { type: string, format: date-time }
+        - in: query
+          name: deadlineAfter
+          schema: { type: string, format: date-time }
+        - in: query
+          name: deadlineBefore
+          schema: { type: string, format: date-time }
+        - in: query
+          name: sort
+          schema: { type: string, enum: [deadline, eventDate, recent], default: deadline }
+        - in: query
+          name: page
+          schema: { type: integer, minimum: 1, maximum: 100000, default: 1 }
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 50, default: 12 }
+      responses:
+        '200':
+          description: Published hackathons and pagination metadata.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HackathonListResponse'
+        '400':
+          description: Invalid, unsupported, or inconsistent filters.
+  /hackathons/{slug}:
+    get:
+      summary: Get a published hackathon
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema: { type: string, pattern: '^[a-z0-9]+(?:-[a-z0-9]+)*$' }
+      responses:
+        '200':
+          description: Published hackathon detail.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { const: true }
+                  data:
+                    type: object
+                    required: [hackathon]
+                    properties:
+                      hackathon: { $ref: '#/components/schemas/Hackathon' }
+        '400':
+          description: Invalid slug.
+        '404':
+          description: Listing not found or not published.
+  /csrf:
+    get:
+      summary: Get a session-bound CSRF token
+      description: The returned token must be sent in the X-CSRF-Token header for state-changing routes.
+      responses:
+        '200':
+          description: CSRF token and session cookie.
+  /student/dashboard:
+    get:
+      summary: Get the authenticated student's dashboard
+      security: [{ sessionCookie: [] }]
+      responses:
+        '200': { description: Dashboard data, counts, reminders, and notifications. }
+        '401': { description: Authentication required. }
+        '403': { description: Student role required. }
+  /student/bookmarks:
+    get:
+      summary: List the student's paginated bookmarks
+      security: [{ sessionCookie: [] }]
+      parameters:
+        - in: query
+          name: page
+          schema: { type: integer, minimum: 1, default: 1 }
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 50, default: 12 }
+      responses:
+        '200': { description: Bookmarks and pagination metadata. }
+        '401': { description: Authentication required. }
+  /student/bookmarks/{id}:
+    post:
+      summary: Bookmark a published hackathon
+      security: [{ sessionCookie: [] }]
+      parameters:
+        - $ref: '#/components/parameters/id'
+        - $ref: '#/components/parameters/csrfHeader'
+      responses:
+        '201': { description: Bookmark created or already present. }
+        '404': { description: Published hackathon not found. }
+    delete:
+      summary: Remove the student's bookmark
+      security: [{ sessionCookie: [] }]
+      parameters:
+        - $ref: '#/components/parameters/id'
+        - $ref: '#/components/parameters/csrfHeader'
+      responses:
+        '200': { description: Bookmark removed and pending reminders cancelled. }
+  /student/notifications:
+    get:
+      summary: List the student's notifications
+      security: [{ sessionCookie: [] }]
+      responses:
+        '200': { description: Notifications and pagination metadata. }
+        '401': { description: Authentication required. }
+  /student/notifications/{id}/read:
+    patch:
+      summary: Mark a student's notification as read
+      security: [{ sessionCookie: [] }]
+      parameters:
+        - $ref: '#/components/parameters/id'
+        - $ref: '#/components/parameters/csrfHeader'
+      responses:
+        '200': { description: Notification marked as read. }
+        '404': { description: Notification not found for this student. }
+  /student/reminder-preferences:
+    get:
+      summary: Read deadline reminder preferences
+      security: [{ sessionCookie: [] }]
+      responses:
+        '200': { description: Current reminder preferences. }
+    put:
+      summary: Update reminder preferences and reschedule pending reminders
+      security: [{ sessionCookie: [] }]
+      parameters:
+        - $ref: '#/components/parameters/csrfHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [enabled, daysBefore, timeZone]
+              properties:
+                enabled: { type: boolean }
+                daysBefore: { type: array, maxItems: 5, uniqueItems: true, items: { type: integer, minimum: 1, maximum: 365 } }
+                timeZone: { type: string, example: Asia/Kolkata }
+      responses:
+        '200': { description: Preferences updated. }
+        '400': { description: Invalid preferences. }
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: ceg_dev_hub_sid
+  parameters:
+    id:
+      in: path
+      name: id
+      required: true
+      schema: { type: string, pattern: '^[a-fA-F0-9]{24}$' }
+    csrfHeader:
+      in: header
+      name: X-CSRF-Token
+      required: true
+      schema: { type: string }
+  schemas:
+    Hackathon:
+      type: object
+      required: [name, slug, organizer, description, registrationUrl, startDate, endDate, registrationDeadline, location, mode, domains, eligibility, minimumTeamSize, maximumTeamSize, prizeDetails, requiredSkills, lifecycleStatus, sourceType, verificationStatus, lastUpdatedAt]
+      properties:
+        name: { type: string }
+        slug: { type: string }
+        organizer: { type: string }
+        description: { type: string }
+        registrationUrl: { type: string, format: uri }
+        startDate: { type: string, format: date-time }
+        endDate: { type: string, format: date-time }
+        registrationDeadline: { type: string, format: date-time }
+        location: { type: string }
+        mode: { type: string, enum: [ONLINE, OFFLINE, HYBRID] }
+        domains: { type: array, items: { type: string } }
+        eligibility: { type: string }
+        minimumTeamSize: { type: integer, minimum: 1 }
+        maximumTeamSize: { type: integer, minimum: 1 }
+        prizeDetails: { type: string }
+        requiredSkills: { type: array, items: { type: string } }
+        lifecycleStatus: { type: string, enum: [UPCOMING, ONGOING, REGISTRATION_OPEN, REGISTRATION_CLOSED] }
+        sourceType: { type: string }
+        sourceUrl: { type: string, format: uri }
+        verificationStatus: { type: string, enum: [UNVERIFIED, VERIFIED, REJECTED] }
+        lastUpdatedAt: { type: string, format: date-time }
+    HackathonListResponse:
+      type: object
+      required: [success, data]
+      properties:
+        success: { const: true }
+        data:
+          type: object
+          required: [items, pagination]
+          properties:
+            items:
+              type: array
+              items: { $ref: '#/components/schemas/Hackathon' }
+            pagination:
+              type: object
+              required: [page, limit, total, totalPages, hasNextPage, hasPreviousPage]
+              properties:
+                page: { type: integer }
+                limit: { type: integer }
+                total: { type: integer }
+                totalPages: { type: integer }
+                hasNextPage: { type: boolean }
+                hasPreviousPage: { type: boolean }
