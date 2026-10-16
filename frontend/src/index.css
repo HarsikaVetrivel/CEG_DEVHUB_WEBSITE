@@ -1,17 +1,95 @@
+/* Google Font — must be first @import */
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&display=swap');
+
 @import 'tailwindcss';
 @config '../tailwind.config.js';
 
+/* ─────────────────────────────────────────────────────────────────
+   DARK THEME — default
+   Colors are space-separated RGB so Tailwind opacity modifiers work:
+   e.g.  bg-primary/20  →  background: rgb(var(--color-primary) / 0.2)
+───────────────────────────────────────────────────────────────── */
 :root {
-  color: #f1f5f9;
-  background-color: #071426;
-  font-family: Inter, 'Segoe UI', sans-serif;
+  /* Core palette */
+  --color-bg:        7 8 20;           /* #070814 — near-black indigo */
+  --color-panel:     11 14 33;         /* #0B0E21 */
+  --color-card:      16 20 50;         /* #101432 */
+  --color-border:    38 46 100;        /* #262E64 */
+  --color-primary:   124 58 237;       /* #7C3AED — vibrant violet */
+  --color-highlight: 196 181 253;      /* #C4B5FD — soft lavender */
+  --color-text:      241 245 249;      /* #F1F5F9 */
+  --color-muted:     148 163 184;      /* #94A3B8 */
+
+  /* Gradients / shadows */
+  --gradient-from:       #070814;
+  --gradient-to:         #0B0E21;
+  --gradient-radial:     rgba(124, 58, 237, 0.20);
+  --shadow-glow:         0 0 0 1px rgba(124, 58, 237, 0.25), 0 20px 50px rgba(4, 6, 18, 0.70);
+  --hero-card-gradient:  radial-gradient(circle at top, rgba(124,58,237,0.25), rgba(7,8,20,0.92) 55%);
+
+  /* Misc */
+  color-scheme: dark;
+  font-family: 'Plus Jakarta Sans', 'Segoe UI', sans-serif;
   line-height: 1.5;
   font-weight: 400;
-  color-scheme: dark;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   LIGHT THEME — applied via  html.light
+───────────────────────────────────────────────────────────────── */
+html.light {
+  --color-bg:        246 244 255;      /* #F6F4FF — faint violet tint */
+  --color-panel:     255 255 255;      /* #FFFFFF */
+  --color-card:      237 233 254;      /* #EDE9FE */
+  --color-border:    196 181 253;      /* #C4B5FD */
+  --color-primary:   109 40 217;       /* #6D28D9 — slightly deeper for light bg */
+  --color-highlight: 76 29 149;        /* #4C1D95 — dark violet for readable text */
+  --color-text:      22 18 60;         /* #16123C — very dark indigo, great contrast */
+  --color-muted:     88 99 120;        /* #586378 — mid-slate */
+
+  --gradient-from:       #F6F4FF;
+  --gradient-to:         #EDE9FE;
+  --gradient-radial:     rgba(109, 40, 217, 0.10);
+  --shadow-glow:         0 0 0 1px rgba(109, 40, 217, 0.18), 0 12px 40px rgba(109, 40, 217, 0.12);
+  --hero-card-gradient:  radial-gradient(circle at top, rgba(109,40,217,0.14), rgba(246,244,255,0.95) 55%);
+
+  color-scheme: light;
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   LIGHT MODE — fix hardcoded text-white on non-colored backgrounds
+   
+   Strategy: override text-white → theme text color on all semantic
+   elements UNLESS the element itself carries a bg-* colour class
+   (e.g. bg-primary buttons keep their white text).
+   Buttons and <a> with bg-* are deliberately excluded.
+───────────────────────────────────────────────────────────────── */
+html.light h1.text-white,
+html.light h2.text-white,
+html.light h3.text-white,
+html.light h4.text-white,
+html.light h5.text-white,
+html.light h6.text-white,
+html.light p.text-white,
+html.light li.text-white,
+html.light span.text-white:not([class*="bg-"]),
+html.light a.text-white:not([class*="bg-"]),
+html.light button.text-white:not([class*="bg-"]),
+html.light div.text-white:not([class*="bg-"]) {
+  color: rgb(var(--color-text));
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   BASE RESET
+───────────────────────────────────────────────────────────────── */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
 }
 
 html {
@@ -22,36 +100,72 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
-  background:
-    radial-gradient(circle at top, rgba(59, 130, 246, 0.16), transparent 28%),
-    linear-gradient(180deg, #071426 0%, #0a182b 100%);
-}
-
-* {
-  box-sizing: border-box;
-}
-
-button,
-a {
-  transition: all 180ms ease;
+  color: rgb(var(--color-text));
+  background-color: rgb(var(--color-bg));
+  background-image:
+    radial-gradient(circle at 50% 0%, var(--gradient-radial), transparent 30%),
+    linear-gradient(180deg, var(--gradient-from) 0%, var(--gradient-to) 100%);
+  transition:
+    background-color 350ms ease,
+    background-image 350ms ease,
+    color 200ms ease;
 }
 
 #root {
   min-height: 100vh;
 }
 
+/* Smooth colour transitions on all elements when theme switches */
+*,
+button,
+a,
+input,
+select {
+  transition:
+    background-color 250ms ease,
+    border-color 250ms ease,
+    box-shadow 250ms ease,
+    color 150ms ease;
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   THEME-AWARE UTILITIES
+───────────────────────────────────────────────────────────────── */
+.shadow-glow {
+  box-shadow: var(--shadow-glow);
+}
+
+.hero-card-gradient {
+  background: var(--hero-card-gradient);
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   FORM INPUTS
+───────────────────────────────────────────────────────────────── */
 .filter-input {
   width: 100%;
-  border: 1px solid #243b55;
+  border: 1px solid rgb(var(--color-border));
   border-radius: 0.75rem;
-  background: #071426;
+  background: rgb(var(--color-bg));
   padding: 0.75rem 1rem;
-  color: #f1f5f9;
+  color: rgb(var(--color-text));
   outline: none;
-  transition: border-color 180ms ease, box-shadow 180ms ease;
+  font-family: inherit;
+}
+
+.filter-input::placeholder {
+  color: rgb(var(--color-muted));
 }
 
 .filter-input:focus-visible {
-  border-color: #60a5fa;
-  box-shadow: 0 0 0 2px rgb(59 130 246 / 30%);
+  border-color: rgb(var(--color-primary));
+  box-shadow: 0 0 0 3px rgb(var(--color-primary) / 0.20);
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   SELECTION HIGHLIGHT
+───────────────────────────────────────────────────────────────── */
+::selection {
+  background: rgb(var(--color-primary) / 0.30);
+  color: rgb(var(--color-text));
 }

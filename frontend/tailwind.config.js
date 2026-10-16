@@ -4,20 +4,28 @@ export default {
   theme: {
     extend: {
       colors: {
-        background: '#071426',
-        panel: '#0B1B30',
-        card: '#10243D',
-        border: '#243B55',
-        primary: '#3B82F6',
-        highlight: '#60A5FA',
-        text: '#F1F5F9',
-        muted: '#9FB1C8',
+        // All colors reference CSS variables so they switch with the theme.
+        // The `<alpha-value>` placeholder lets Tailwind opacity modifiers work
+        // e.g.  bg-primary/20  →  background: rgb(var(--color-primary) / 0.2)
+        background: 'rgb(var(--color-bg) / <alpha-value>)',
+        panel:      'rgb(var(--color-panel) / <alpha-value>)',
+        card:       'rgb(var(--color-card) / <alpha-value>)',
+        border:     'rgb(var(--color-border) / <alpha-value>)',
+        primary:    'rgb(var(--color-primary) / <alpha-value>)',
+        highlight:  'rgb(var(--color-highlight) / <alpha-value>)',
+        text:       'rgb(var(--color-text) / <alpha-value>)',
+        muted:      'rgb(var(--color-muted) / <alpha-value>)',
       },
       boxShadow: {
-        glow: '0 0 0 1px rgba(96,165,250,0.2), 0 20px 45px rgba(10,17,30,0.5)',
+        // glow shadow is defined as a CSS variable so it changes with theme
+        glow: 'var(--shadow-glow)',
       },
       backgroundImage: {
-        'grid-pattern': 'radial-gradient(circle at 1px 1px, rgba(159,177,200,0.14) 1px, transparent 0)',
+        'grid-pattern':
+          'radial-gradient(circle at 1px 1px, rgba(var(--color-muted), 0.12) 1px, transparent 0)',
+      },
+      fontFamily: {
+        sans: ['"Plus Jakarta Sans"', 'Segoe UI', 'sans-serif'],
       },
     },
   },

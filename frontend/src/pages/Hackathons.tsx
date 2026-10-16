@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 
 import { API_BASE_URL, apiFetch, getCsrfToken } from '../lib/api';
+import { Navbar } from '../components/Navbar';
 const domains = [
   'AI/ML',
   'Web Development',
@@ -82,29 +83,7 @@ const readErrorMessage = (body: unknown) => {
   return 'Unable to load hackathons right now. Please try again.';
 };
 
-function Header() {
-  return (
-    <header className="mb-8 rounded-full border border-border/80 bg-panel/85 px-4 py-3 shadow-glow backdrop-blur-xl">
-      <div className="flex items-center justify-between gap-4">
-        <Link to="/" className="flex items-center gap-3" aria-label="CEG DEV HUB home">
-          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/15 text-lg font-bold text-highlight ring-1 ring-primary/40">
-            &lt;/&gt;
-          </span>
-          <span>
-            <span className="block text-sm font-semibold uppercase tracking-[0.2em] text-highlight">CEG</span>
-            <span className="block text-lg font-semibold text-text">DEV HUB</span>
-          </span>
-        </Link>
-        <Link
-          className="rounded-full bg-primary px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#2f75ef]"
-          to="/hackathons"
-        >
-          Browse hackathons
-        </Link>
-      </div>
-    </header>
-  );
-}
+// Header removed — shared <Navbar variant="authenticated" /> is used instead
 
 function ListingCard({ hackathon }: { hackathon: Hackathon }) {
   return (
@@ -160,7 +139,7 @@ function ListingCard({ hackathon }: { hackathon: Hackathon }) {
           {prettyLabel(hackathon.lifecycleStatus)}
         </span>
         <Link
-          className="rounded-full bg-primary px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#2f75ef]"
+          className="rounded-full bg-primary px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90"
           to={`/hackathons/${encodeURIComponent(hackathon.slug)}`}
         >
           Details
@@ -238,10 +217,12 @@ function BookmarkButton({ hackathonId, name }: { hackathonId: string; name: stri
 }
 
 export function HackathonDiscovery() {
+  const [searchParams] = useSearchParams();
   const [search, setSearch] = useState('');
   const [location, setLocation] = useState('');
   const [mode, setMode] = useState('');
-  const [domain, setDomain] = useState('');
+  // Pre-populate domain from ?domain= query param (e.g. from landing page domain buttons)
+  const [domain, setDomain] = useState(() => searchParams.get('domain') ?? '');
   const [status, setStatus] = useState('');
   const [startAfter, setStartAfter] = useState('');
   const [startBefore, setStartBefore] = useState('');
@@ -340,7 +321,7 @@ export function HackathonDiscovery() {
   return (
     <div className="min-h-screen bg-background text-text antialiased">
       <div className="mx-auto max-w-7xl px-4 pb-16 pt-6 sm:px-6 lg:px-8">
-        <Header />
+        <Navbar variant="authenticated" />
         <main>
           <div className="mb-8">
             <p className="text-sm font-medium uppercase tracking-[0.2em] text-highlight">Discover opportunities</p>
@@ -534,8 +515,8 @@ export function HackathonDetails() {
   return (
     <div className="min-h-screen bg-background text-text antialiased">
       <div className="mx-auto max-w-5xl px-4 pb-16 pt-6 sm:px-6 lg:px-8">
-        <Header />
-        <Link to="/hackathons" className="text-sm font-medium text-highlight hover:text-white">← Back to discovery</Link>
+        <Navbar variant="authenticated" />
+        <Link to="/hackathons" className="inline-flex items-center gap-1 text-sm font-medium text-highlight hover:text-white">← Back to discovery</Link>
         {loading && <div className="mt-6 h-96 animate-pulse rounded-[28px] border border-border bg-card/70" />}
         {!loading && error && (
           <div className="mt-6 rounded-[28px] border border-rose-500/30 bg-rose-500/10 p-6" role="alert">
@@ -600,11 +581,11 @@ export function HackathonDetails() {
                 <h2 className="text-lg font-bold text-white">Listing information</h2>
                 <p className="mt-2 text-sm text-muted">Source: {prettyLabel(hackathon.sourceType)}</p>
                 <p className="mt-1 text-sm text-muted">Updated: {formatDate(hackathon.lastUpdatedAt)}</p>
-                {hackathon.sourceUrl && <a className="mt-1 inline-block text-sm text-highlight hover:text-white" href={hackathon.sourceUrl} target="_blank" rel="noopener noreferrer">View source ↗</a>}
+                {hackathon.sourceUrl && <a href={hackathon.sourceUrl} target="_blank" rel="noopener noreferrer" className="mt-1 inline-block text-sm text-highlight hover:text-text">View source ↗</a>}
               </div>
             </section>
             <a
-              className="mt-9 inline-flex rounded-full bg-primary px-6 py-3 font-semibold text-white transition hover:bg-[#2f75ef]"
+              className="mt-9 inline-flex rounded-full bg-primary px-6 py-3 font-semibold text-white transition hover:opacity-90"
               href={hackathon.registrationUrl}
               target="_blank"
               rel="noopener noreferrer"
@@ -612,6 +593,244 @@ export function HackathonDetails() {
               Visit official registration ↗
             </a>
           </article>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   HACKATHON DIRECTORY
+   Clean, focused page showing all active hackathons from the API.
+   Replaces the filter-heavy "Discovery" page as the post-login view.
+───────────────────────────────────────────────────────────────── */
+
+const STATUS_TABS = [
+  { label: 'All Active',          value: '' },
+  { label: 'Registration Open',   value: 'REGISTRATION_OPEN' },
+  { label: 'Upcoming',            value: 'UPCOMING' },
+  { label: 'Ongoing',             value: 'ONGOING' },
+] as const;
+
+export function HackathonDirectory() {
+  const [searchParams] = useSearchParams();
+  const [search, setSearch]   = useState('');
+  const [domain, setDomain]   = useState(() => searchParams.get('domain') ?? '');
+  const [status, setStatus]   = useState('REGISTRATION_OPEN');
+  const [sort,   setSort]     = useState('deadline');
+  const [page,   setPage]     = useState(1);
+
+  const [response, setResponse] = useState<ListResponse['data']>();
+  const [loading,  setLoading]  = useState(true);
+  const [error,    setError]    = useState('');
+  const [refresh,  setRefresh]  = useState(0);
+
+  // Build query string
+  const queryString = useMemo(() => {
+    const params = new URLSearchParams({ page: String(page), limit: '12', sort });
+    if (search) params.set('q', search);
+    if (domain) params.set('domain', domain);
+    if (status) params.set('status', status);
+    return params.toString();
+  }, [page, sort, search, domain, status]);
+
+  // Fetch on query change
+  useEffect(() => {
+    const controller = new AbortController();
+    setLoading(true);
+    setError('');
+    fetch(`${API_BASE_URL}/api/v1/hackathons?${queryString}`, {
+      signal: controller.signal,
+      credentials: 'include',
+    })
+      .then(async (res) => {
+        const body: unknown = await res.json();
+        if (!res.ok) throw new Error(readErrorMessage(body));
+        return body as ListResponse;
+      })
+      .then((res) => setResponse(res.data))
+      .catch((cause: unknown) => {
+        if (cause instanceof DOMException && cause.name === 'AbortError') return;
+        setError(cause instanceof Error ? cause.message : 'Unable to load hackathons.');
+      })
+      .finally(() => { if (!controller.signal.aborted) setLoading(false); });
+    return () => controller.abort();
+  }, [queryString, refresh]);
+
+  // Reset to page 1 when filters change
+  const handleStatusChange = (val: string) => { setStatus(val); setPage(1); };
+  const handleSearchSubmit  = (e: React.FormEvent) => { e.preventDefault(); setPage(1); setRefresh(r => r + 1); };
+
+  return (
+    <div className="min-h-screen bg-background text-text antialiased">
+      <div className="mx-auto max-w-7xl px-4 pb-16 pt-6 sm:px-6 lg:px-8">
+        <Navbar variant="authenticated" />
+
+        {/* ── Page heading ── */}
+        <div className="mb-8">
+          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-highlight">
+            CEG DEV HUB
+          </p>
+          <h1 className="mt-2 text-4xl font-black text-white">Hackathon Directory</h1>
+          <p className="mt-2 max-w-2xl text-muted">
+            Browse all active hackathons. Bookmark ones you like and track deadlines from your dashboard.
+          </p>
+        </div>
+
+        {/* ── Status tabs ── */}
+        <div className="mb-6 flex flex-wrap gap-2">
+          {STATUS_TABS.map((tab) => (
+            <button
+              key={tab.value}
+              type="button"
+              onClick={() => handleStatusChange(tab.value)}
+              className={`rounded-full px-4 py-2 text-sm font-semibold transition
+                ${status === tab.value
+                  ? 'bg-primary text-white shadow-lg shadow-primary/30'
+                  : 'border border-border bg-card text-muted hover:border-primary/50 hover:text-highlight'
+                }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        {/* ── Search + filters row ── */}
+        <form
+          className="mb-7 flex flex-wrap gap-3"
+          onSubmit={handleSearchSubmit}
+        >
+          {/* Search */}
+          <div className="relative flex-1 min-w-[200px]">
+            <span className="absolute inset-y-0 left-3 flex items-center text-muted pointer-events-none">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+              </svg>
+            </span>
+            <input
+              className="filter-input pl-10"
+              placeholder="Search by name, organizer, skills…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+
+          {/* Domain */}
+          <select
+            className="filter-input w-auto min-w-[160px]"
+            value={domain}
+            onChange={(e) => { setDomain(e.target.value); setPage(1); }}
+          >
+            <option value="">All domains</option>
+            {domains.map((d) => <option key={d} value={d}>{d}</option>)}
+          </select>
+
+          {/* Sort */}
+          <select
+            className="filter-input w-auto min-w-[180px]"
+            value={sort}
+            onChange={(e) => { setSort(e.target.value); setPage(1); }}
+          >
+            <option value="deadline">Sort: Registration deadline</option>
+            <option value="eventDate">Sort: Event date</option>
+            <option value="recent">Sort: Recently added</option>
+          </select>
+
+          <button
+            type="submit"
+            className="rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-white transition hover:opacity-90"
+          >
+            Search
+          </button>
+
+          {(search || domain) && (
+            <button
+              type="button"
+              className="rounded-full border border-border px-5 py-2.5 text-sm text-muted transition hover:border-primary/50 hover:text-text"
+              onClick={() => { setSearch(''); setDomain(''); setPage(1); }}
+            >
+              Clear
+            </button>
+          )}
+        </form>
+
+        {/* ── Results count ── */}
+        {!loading && !error && response && (
+          <p className="mb-4 text-sm text-muted">
+            {response.pagination.total} hackathon{response.pagination.total !== 1 ? 's' : ''} found
+            {response.pagination.totalPages > 1 && ` · Page ${response.pagination.page} of ${response.pagination.totalPages}`}
+          </p>
+        )}
+
+        {/* ── Loading skeleton ── */}
+        {loading && (
+          <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+            {Array.from({ length: 6 }, (_, i) => (
+              <div key={i} className="h-80 animate-pulse rounded-[28px] border border-border bg-card/70" />
+            ))}
+          </div>
+        )}
+
+        {/* ── Error ── */}
+        {!loading && error && (
+          <div className="rounded-[28px] border border-rose-500/30 bg-rose-500/10 p-6" role="alert">
+            <h2 className="text-lg font-semibold text-rose-200">Could not load hackathons</h2>
+            <p className="mt-2 text-sm text-rose-100/80">{error}</p>
+            <button
+              className="mt-4 rounded-full border border-rose-300/30 px-4 py-2 text-sm text-rose-100 hover:bg-rose-500/20"
+              onClick={() => setRefresh((r) => r + 1)}
+            >
+              Try again
+            </button>
+          </div>
+        )}
+
+        {/* ── Card grid ── */}
+        {!loading && !error && response && (
+          <>
+            {response.items.length > 0 ? (
+              <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+                {response.items.map((h) => <ListingCard key={h._id} hackathon={h} />)}
+              </div>
+            ) : (
+              <div className="rounded-[28px] border border-border bg-card px-6 py-16 text-center">
+                <p className="text-3xl">🔍</p>
+                <h2 className="mt-4 text-xl font-semibold text-white">No hackathons found</h2>
+                <p className="mt-2 text-muted">
+                  Try a different status tab or clear your filters.
+                </p>
+                <button
+                  className="mt-5 rounded-full border border-border px-5 py-2.5 text-sm text-muted hover:border-primary/50 hover:text-text"
+                  onClick={() => { setSearch(''); setDomain(''); setStatus(''); setPage(1); }}
+                >
+                  Show all
+                </button>
+              </div>
+            )}
+
+            {/* Pagination */}
+            {response.pagination.totalPages > 1 && (
+              <div className="mt-8 flex items-center justify-center gap-3">
+                <button
+                  className="rounded-full border border-border px-5 py-2.5 text-sm font-medium text-muted transition hover:border-primary/50 hover:text-text disabled:cursor-not-allowed disabled:opacity-40"
+                  disabled={!response.pagination.hasPreviousPage}
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                >
+                  ← Previous
+                </button>
+                <span className="rounded-full border border-border bg-card px-4 py-2 text-sm text-muted">
+                  {response.pagination.page} / {response.pagination.totalPages}
+                </span>
+                <button
+                  className="rounded-full border border-border px-5 py-2.5 text-sm font-medium text-muted transition hover:border-primary/50 hover:text-text disabled:cursor-not-allowed disabled:opacity-40"
+                  disabled={!response.pagination.hasNextPage}
+                  onClick={() => setPage((p) => p + 1)}
+                >
+                  Next →
+                </button>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>

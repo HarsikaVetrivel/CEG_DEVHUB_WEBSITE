@@ -16,7 +16,18 @@ export const getErrorMessage = (body: unknown, fallback: string) => {
   return fallback;
 };
 
-export const getCsrfToken = async () => {
+// ── CSRF token cache ─────────────────────────────────────────────
+// Token is per-session. Call invalidateCsrfToken() on logout or
+// when the server returns 403 (token invalidated after re-login).
+let _csrfToken: string | null = null;
+
+export const invalidateCsrfToken = (): void => {
+  _csrfToken = null;
+};
+
+export const getCsrfToken = async (): Promise<string> => {
+  if (_csrfToken) return _csrfToken;
+
   const response = await fetch(`${API_BASE_URL}/api/v1/auth/csrf`, {
     credentials: 'include',
   });
@@ -27,9 +38,11 @@ export const getCsrfToken = async () => {
   if (!response.ok || !body.data?.csrfToken) {
     throw new Error(body.error?.message ?? 'Could not start a secure session. Please retry.');
   }
-  return body.data.csrfToken;
+  _csrfToken = body.data.csrfToken;
+  return _csrfToken;
 };
 
+// ── Generic API fetch ─────────────────────────────────────────────
 export const apiFetch = async <T>(
   path: string,
   options: RequestInit = {},
@@ -44,6 +57,8 @@ export const apiFetch = async <T>(
   });
   const body = (await response.json()) as T & ErrorPayload;
   if (!response.ok) {
+    // Clear cached CSRF token on 403 so next mutation fetches fresh one
+    if (response.status === 403) invalidateCsrfToken();
     throw new Error(getErrorMessage(body, 'Request failed. Please try again.'));
   }
   return body;

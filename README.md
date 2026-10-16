@@ -77,7 +77,21 @@ npm run dev
 
 The API listens at `http://localhost:5000` by default. It must be able to connect to MongoDB before it starts listening.
 
-### 2. Start the frontend
+### 2. Seed the Admin User
+
+To provision or reset the platform administrator account, run:
+
+```powershell
+npm run seed:admin
+```
+
+This creates or updates the admin user in MongoDB:
+- **Username / Email:** `devhubadmin`
+- **Password:** `devhubadmin@123`
+- **Role:** `ADMIN`
+- **Admin Portal URL:** `http://localhost:5173/admin/login`
+
+### 3. Start the frontend
 
 In a second PowerShell terminal, from the project root:
 

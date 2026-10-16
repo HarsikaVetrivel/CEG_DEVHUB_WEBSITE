@@ -37,7 +37,10 @@ export const registerUser = async (input: {
 
 export const findUserByEmail = async (email: string) => {
   const normalizedEmail = email.trim().toLowerCase();
-  return User.findOne({ email: normalizedEmail }).select('+passwordHash');
+  const usernamePrefix = normalizedEmail.includes('@') ? normalizedEmail.split('@')[0] : normalizedEmail;
+  return User.findOne({
+    $or: [{ email: normalizedEmail }, { email: usernamePrefix }],
+  }).select('+passwordHash');
 };
 
 export const findUserById = async (userId: string) => {

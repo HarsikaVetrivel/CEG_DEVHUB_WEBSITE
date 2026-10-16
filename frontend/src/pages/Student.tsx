@@ -2,6 +2,8 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 
 import { apiFetch, getCsrfToken } from '../lib/api';
+import { Navbar } from '../components/Navbar';
+import { useAuth } from '../contexts/AuthContext';
 
 type UserSummary = {
   id: string;
@@ -60,22 +62,16 @@ const dateLabel = (date: string) =>
 function StudentShell({
   children,
   title,
+  navVariant = 'authenticated',
 }: {
   children: React.ReactNode;
   title: string;
+  navVariant?: 'public' | 'authenticated';
 }) {
   return (
     <div className="min-h-screen bg-background text-text">
       <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
-        <header className="mb-8 flex items-center justify-between rounded-full border border-border bg-panel/90 px-5 py-3">
-          <Link className="font-semibold text-white" to="/">CEG DEV HUB</Link>
-          <nav className="flex gap-4 text-sm text-muted">
-            <Link className="hover:text-white" to="/dashboard">Dashboard</Link>
-            <Link className="hover:text-white" to="/bookmarks">Bookmarks</Link>
-            <Link className="hover:text-white" to="/notifications">Notifications</Link>
-            <Link className="hover:text-white" to="/hackathons">Discover</Link>
-          </nav>
-        </header>
+        <Navbar variant={navVariant} />
         <main>
           <p className="text-sm font-medium uppercase tracking-[0.2em] text-highlight">Student space</p>
           <h1 className="mb-7 mt-2 text-3xl font-black text-white">{title}</h1>
@@ -86,11 +82,20 @@ function StudentShell({
   );
 }
 
+/* ─── Auth Page ──────────────────────────────────────────────────── */
 export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
   const navigate = useNavigate();
+  const { status, refresh } = useAuth();
+
+  // F2: Redirect away if the user is already logged in
+  useEffect(() => {
+    if (status === 'authenticated') {
+      navigate('/hackathons', { replace: true });
+    }
+  }, [status, navigate]);
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -115,9 +120,13 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
         ),
       });
       if (mode === 'register') {
-        setNotice('Your student account is ready. Sign in to continue.');
+        // B2: Show success then auto-redirect to login
+        setNotice('Account created! Redirecting to sign in…');
+        setTimeout(() => navigate('/login', { replace: true }), 2000);
       } else {
-        navigate('/dashboard', { replace: true });
+        // Update shared auth state then navigate
+        refresh();
+        navigate('/hackathons', { replace: true });
       }
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Unable to continue.');
@@ -127,18 +136,22 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
   };
 
   return (
-    <StudentShell title={mode === 'login' ? 'Welcome back' : 'Join the community'}>
+    <StudentShell
+      title={mode === 'login' ? 'Welcome back' : 'Join the community'}
+      navVariant="public"
+    >
       <div className="mx-auto max-w-md rounded-[28px] border border-border bg-card p-6 sm:p-8">
         <p className="mb-6 text-sm text-muted">
           {mode === 'login'
             ? 'Sign in to manage your bookmarked opportunities and reminders.'
             : 'Create your CEG DEV HUB student account.'}
         </p>
-        <form className="space-y-4" onSubmit={submit}>
+        {/* key={mode} forces full DOM reset when switching login ↔ register */}
+        <form key={mode} className="space-y-4" onSubmit={submit}>
           {mode === 'register' && (
             <label className="block text-sm text-muted">
               Full name
-              <input className="filter-input mt-2" name="fullName" minLength={2} maxLength={120} required />
+              <input className="filter-input mt-2" name="fullName" autoComplete="name" minLength={2} maxLength={120} required />
             </label>
           )}
           <label className="block text-sm text-muted">
@@ -157,13 +170,14 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
           )}
           {error && <p className="text-sm text-rose-200" role="alert">{error}</p>}
           {notice && <p className="text-sm text-emerald-300" role="status">{notice}</p>}
-          <button className="w-full rounded-full bg-primary px-5 py-3 font-semibold text-white hover:bg-[#2f75ef] disabled:opacity-50" disabled={busy}>
-            {busy ? 'Working...' : mode === 'login' ? 'Sign in' : 'Create student account'}
+          {/* B5: was hover:bg-[#2f75ef] — replaced with theme-aware hover:opacity-90 */}
+          <button className="w-full rounded-full bg-primary px-5 py-3 font-semibold text-white transition hover:opacity-90 disabled:opacity-50" disabled={busy}>
+            {busy ? 'Working…' : mode === 'login' ? 'Sign in' : 'Create student account'}
           </button>
         </form>
         <p className="mt-5 text-sm text-muted">
           {mode === 'login' ? 'New here? ' : 'Already registered? '}
-          <Link className="text-highlight hover:text-white" to={mode === 'login' ? '/register' : '/login'}>
+          <Link className="text-highlight hover:text-text" to={mode === 'login' ? '/register' : '/login'}>
             {mode === 'login' ? 'Create an account' : 'Sign in'}
           </Link>
         </p>
@@ -172,6 +186,7 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
   );
 }
 
+/* ─── Student Dashboard ──────────────────────────────────────────── */
 export function StudentDashboard() {
   const [dashboard, setDashboard] = useState<Dashboard>();
   const [error, setError] = useState('');
@@ -224,19 +239,6 @@ export function StudentDashboard() {
     }
   };
 
-  const logout = async () => {
-    try {
-      const csrfToken = await getCsrfToken();
-      await apiFetch('/api/v1/auth/logout', {
-        method: 'POST',
-        headers: { 'X-CSRF-Token': csrfToken },
-      });
-      navigate('/login', { replace: true });
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Unable to log out.');
-    }
-  };
-
   if (error && !dashboard) {
     return (
       <StudentShell title="Student dashboard">
@@ -264,7 +266,7 @@ export function StudentDashboard() {
         <section className="rounded-[28px] border border-border bg-card p-6">
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-bold text-white">Upcoming bookmarked deadlines</h2>
-            <Link className="text-sm text-highlight hover:text-white" to="/bookmarks">All bookmarks</Link>
+            <Link className="text-sm text-highlight hover:text-text" to="/bookmarks">All bookmarks</Link>
           </div>
           {dashboard.upcomingBookmarkedDeadlines.length ? (
             <div className="mt-4 space-y-3">
@@ -279,15 +281,32 @@ export function StudentDashboard() {
               ))}
             </div>
           ) : (
-            <p className="mt-4 text-sm text-muted">No saved upcoming deadlines yet. Browse opportunities and bookmark ones you like.</p>
+            <div className="mt-4">
+              <p className="text-sm text-muted">No saved upcoming deadlines yet.</p>
+              {/* F3: CTA when bookmarks are empty */}
+              <Link
+                to="/hackathons"
+                className="mt-3 inline-flex items-center gap-2 rounded-full bg-primary/10 border border-primary/30 px-4 py-2 text-sm font-semibold text-highlight transition hover:bg-primary hover:text-white"
+              >
+                Browse Hackathon Directory →
+              </Link>
+            </div>
           )}
         </section>
 
         <section className="rounded-[28px] border border-border bg-card p-6">
           <h2 className="text-xl font-bold text-white">Reminder preferences</h2>
-          <form className="mt-4 space-y-4" onSubmit={savePreferences}>
+          {/* B7: key forces form remount after save so inputs show fresh values */}
+          <form key={JSON.stringify(dashboard.reminderPreferences)} className="mt-4 space-y-4" onSubmit={savePreferences}>
             <label className="flex items-center gap-3 text-sm text-text">
-              <input className="h-4 w-4 accent-blue-500" name="enabled" type="checkbox" defaultChecked={dashboard.reminderPreferences.enabled} />
+              {/* B6: accent-blue-500 replaced with CSS variable */}
+              <input
+                className="h-4 w-4"
+                style={{ accentColor: 'rgb(var(--color-primary))' }}
+                name="enabled"
+                type="checkbox"
+                defaultChecked={dashboard.reminderPreferences.enabled}
+              />
               Enable deadline reminders
             </label>
             <label className="block text-sm text-muted">
@@ -298,7 +317,7 @@ export function StudentDashboard() {
               Time zone
               <input className="filter-input mt-2" name="timeZone" defaultValue={dashboard.reminderPreferences.timeZone} />
             </label>
-            <button className="rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-50" disabled={busy}>
+            <button className="rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-50" disabled={busy}>
               Save preferences
             </button>
           </form>
@@ -308,7 +327,7 @@ export function StudentDashboard() {
       <section className="mt-6 rounded-[28px] border border-border bg-card p-6">
         <div className="flex items-center justify-between">
           <h2 className="text-xl font-bold text-white">Recent notifications</h2>
-          <Link className="text-sm text-highlight hover:text-white" to="/notifications">View all</Link>
+          <Link className="text-sm text-highlight hover:text-text" to="/notifications">View all</Link>
         </div>
         {dashboard.notifications.length ? (
           <div className="mt-4 space-y-3">
@@ -321,28 +340,34 @@ export function StudentDashboard() {
           </div>
         ) : <p className="mt-4 text-sm text-muted">No notifications yet.</p>}
       </section>
-      <button className="mt-6 rounded-full border border-border px-4 py-2 text-sm text-muted hover:border-rose-400/50 hover:text-rose-200" onClick={logout}>Sign out</button>
     </StudentShell>
   );
 }
 
+/* ─── Bookmarks Page ─────────────────────────────────────────────── */
 export function BookmarksPage() {
   const [items, setItems] = useState<BookmarkItem[]>([]);
   const [error, setError] = useState('');
+  // B3: Loading state
+  const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
-  const load = () =>
+  const load = () => {
+    setLoading(true);
     apiFetch<{ data: { items: BookmarkItem[] } }>('/api/v1/student/bookmarks')
       .then((response) => setItems(response.data.items))
       .catch((cause: unknown) => {
         const message = cause instanceof Error ? cause.message : 'Unable to load bookmarks.';
         if (message === 'Authentication required.') navigate('/login', { replace: true });
         else setError(message);
-      });
+      })
+      .finally(() => setLoading(false));
+  };
 
   useEffect(() => {
     void load();
   }, []);
+
   const remove = async (hackathonId: string) => {
     try {
       const csrfToken = await getCsrfToken();
@@ -359,41 +384,70 @@ export function BookmarksPage() {
   return (
     <StudentShell title="Your bookmarks">
       {error && <p className="mb-4 text-sm text-rose-200" role="alert">{error}</p>}
-      {items.length ? (
+
+      {/* B3: Skeleton while loading */}
+      {loading && (
+        <div className="grid gap-4 md:grid-cols-2">
+          {Array.from({ length: 4 }, (_, i) => (
+            <div key={i} className="h-40 animate-pulse rounded-[24px] border border-border bg-card" />
+          ))}
+        </div>
+      )}
+
+      {!loading && items.length > 0 && (
         <div className="grid gap-4 md:grid-cols-2">
           {items.map((item) => (
             <article key={item._id} className="rounded-[24px] border border-border bg-card p-5">
               <Link to={`/hackathons/${item.hackathon.slug}`} className="text-xl font-bold text-white hover:text-highlight">{item.hackathon.name}</Link>
               <p className="mt-1 text-sm text-muted">{item.hackathon.organizer}</p>
               <p className="mt-4 text-sm text-highlight">Deadline: {dateLabel(item.hackathon.registrationDeadline)}</p>
-              <button className="mt-4 rounded-full border border-border px-4 py-2 text-sm text-muted hover:border-rose-400/50 hover:text-rose-200" onClick={() => remove(item.hackathon._id)}>
+              <button className="mt-4 rounded-full border border-border px-4 py-2 text-sm text-muted hover:border-rose-400/50 hover:text-rose-200 transition" onClick={() => remove(item.hackathon._id)}>
                 Remove bookmark
               </button>
             </article>
           ))}
         </div>
-      ) : !error ? <p className="rounded-[24px] border border-border bg-card p-6 text-muted">No bookmarks yet. <Link className="text-highlight" to="/hackathons">Find a hackathon</Link>.</p> : null}
+      )}
+
+      {!loading && items.length === 0 && !error && (
+        <div className="rounded-[24px] border border-border bg-card p-8 text-center">
+          <p className="text-3xl">🔖</p>
+          <p className="mt-4 text-muted">No bookmarks yet.</p>
+          {/* F3: CTA to directory */}
+          <Link className="mt-4 inline-flex rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-white transition hover:opacity-90" to="/hackathons">
+            Browse Hackathon Directory →
+          </Link>
+        </div>
+      )}
     </StudentShell>
   );
 }
 
+/* ─── Notifications Page ─────────────────────────────────────────── */
 export function NotificationsPage() {
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [error, setError] = useState('');
+  // B4: Loading state
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
   const navigate = useNavigate();
 
-  const load = () =>
+  const load = () => {
+    setLoading(true);
     apiFetch<{ data: { items: NotificationItem[] } }>('/api/v1/student/notifications')
       .then((response) => setItems(response.data.items))
       .catch((cause: unknown) => {
         const message = cause instanceof Error ? cause.message : 'Unable to load notifications.';
         if (message === 'Authentication required.') navigate('/login', { replace: true });
         else setError(message);
-      });
+      })
+      .finally(() => setLoading(false));
+  };
 
   useEffect(() => {
     void load();
   }, []);
+
   const markRead = async (id: string) => {
     try {
       const csrfToken = await getCsrfToken();
@@ -407,23 +461,85 @@ export function NotificationsPage() {
     }
   };
 
+  // F4: Mark all unread notifications as read in parallel
+  const markAllRead = async () => {
+    const unread = items.filter((item) => !item.readAt);
+    if (unread.length === 0) return;
+    setBusy(true);
+    setError('');
+    try {
+      const csrfToken = await getCsrfToken();
+      await Promise.all(
+        unread.map((item) =>
+          apiFetch(`/api/v1/student/notifications/${item._id}/read`, {
+            method: 'PATCH',
+            headers: { 'X-CSRF-Token': csrfToken },
+          }),
+        ),
+      );
+      setItems((current) =>
+        current.map((item) => ({ ...item, readAt: item.readAt ?? new Date().toISOString() })),
+      );
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Unable to update notifications.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const unreadCount = items.filter((item) => !item.readAt).length;
+
   return (
     <StudentShell title="Notifications">
       {error && <p className="mb-4 text-sm text-rose-200" role="alert">{error}</p>}
-      {items.length ? (
+
+      {/* B4: Skeleton while loading */}
+      {loading && (
         <div className="space-y-3">
-          {items.map((item) => (
-            <article key={item._id} className="flex items-start justify-between gap-4 rounded-[24px] border border-border bg-card p-5">
-              <div>
-                <p className="font-semibold text-white">{item.title}</p>
-                <p className="mt-1 text-sm text-muted">{item.message}</p>
-                <p className="mt-2 text-xs text-muted">{dateLabel(item.createdAt)}</p>
-              </div>
-              {!item.readAt && <button className="shrink-0 text-sm text-highlight hover:text-white" onClick={() => markRead(item._id)}>Mark read</button>}
-            </article>
+          {Array.from({ length: 4 }, (_, i) => (
+            <div key={i} className="h-24 animate-pulse rounded-[24px] border border-border bg-card" />
           ))}
         </div>
-      ) : !error ? <p className="rounded-[24px] border border-border bg-card p-6 text-muted">You’re all caught up.</p> : null}
+      )}
+
+      {!loading && items.length > 0 && (
+        <>
+          {/* F4: Mark all as read button */}
+          {unreadCount > 0 && (
+            <div className="mb-4 flex items-center justify-between">
+              <p className="text-sm text-muted">{unreadCount} unread notification{unreadCount !== 1 ? 's' : ''}</p>
+              <button
+                className="rounded-full border border-border px-4 py-2 text-sm text-muted transition hover:border-primary/50 hover:text-text disabled:opacity-50"
+                onClick={markAllRead}
+                disabled={busy}
+                type="button"
+              >
+                {busy ? 'Marking…' : 'Mark all as read'}
+              </button>
+            </div>
+          )}
+          <div className="space-y-3">
+            {items.map((item) => (
+              <article key={item._id} className={`flex items-start justify-between gap-4 rounded-[24px] border bg-card p-5 transition ${item.readAt ? 'border-border opacity-70' : 'border-primary/30'}`}>
+                <div>
+                  <p className="font-semibold text-white">{item.title}</p>
+                  <p className="mt-1 text-sm text-muted">{item.message}</p>
+                  <p className="mt-2 text-xs text-muted">{dateLabel(item.createdAt)}</p>
+                </div>
+                {!item.readAt && (
+                  <button className="shrink-0 rounded-full border border-primary/30 px-3 py-1.5 text-xs font-medium text-highlight transition hover:bg-primary hover:text-white" onClick={() => markRead(item._id)}>
+                    Mark read
+                  </button>
+                )}
+              </article>
+            ))}
+          </div>
+        </>
+      )}
+
+      {!loading && items.length === 0 && !error && (
+        <p className="rounded-[24px] border border-border bg-card p-6 text-muted">You're all caught up. 🎉</p>
+      )}
     </StudentShell>
   );
 }
