@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 
 import { apiFetch, getCsrfToken } from '../lib/api';
 import { Navbar } from '../components/Navbar';
+import { PasswordInput } from '../components/PasswordInput';
 import { useAuth } from '../contexts/AuthContext';
 
 type UserSummary = {
@@ -42,7 +43,14 @@ type NotificationItem = {
 };
 
 type Dashboard = {
-  profile: { fullName: string; emailVerified: boolean };
+  profile: {
+    fullName: string;
+    email: string;
+    emailVerified: boolean;
+    yearOfStudy: number | null;
+    course: string | null;
+    interestedDomains: string[];
+  };
   summary: { bookmarks: number; unreadNotifications: number };
   reminderPreferences: { enabled: boolean; daysBefore: number[]; timeZone: string };
   upcomingBookmarkedDeadlines: Array<{
@@ -160,12 +168,12 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
           </label>
           <label className="block text-sm text-muted">
             Password
-            <input className="filter-input mt-2" name="password" type="password" minLength={8} maxLength={128} autoComplete={mode === 'login' ? 'current-password' : 'new-password'} required />
+            <PasswordInput className="filter-input mt-2 w-full" name="password" minLength={8} maxLength={128} autoComplete={mode === 'login' ? 'current-password' : 'new-password'} required />
           </label>
           {mode === 'register' && (
             <label className="block text-sm text-muted">
               Confirm password
-              <input className="filter-input mt-2" name="confirmPassword" type="password" minLength={8} maxLength={128} autoComplete="new-password" required />
+              <PasswordInput className="filter-input mt-2 w-full" name="confirmPassword" minLength={8} maxLength={128} autoComplete="new-password" required />
             </label>
           )}
           {error && <p className="text-sm text-rose-200" role="alert">{error}</p>}
@@ -174,6 +182,13 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
           <button className="w-full rounded-full bg-primary px-5 py-3 font-semibold text-white transition hover:opacity-90 disabled:opacity-50" disabled={busy}>
             {busy ? 'Working…' : mode === 'login' ? 'Sign in' : 'Create student account'}
           </button>
+          {mode === 'login' && (
+            <div className="text-center">
+              <Link className="text-sm text-muted hover:text-highlight" to="/forgot-password">
+                Forgot your password?
+              </Link>
+            </div>
+          )}
         </form>
         <p className="mt-5 text-sm text-muted">
           {mode === 'login' ? 'New here? ' : 'Already registered? '}
@@ -250,6 +265,25 @@ export function StudentDashboard() {
 
   return (
     <StudentShell title={`Welcome, ${dashboard.profile.fullName}`}>
+
+      {/* ── Email verification banner ── */}
+      {!dashboard.profile.emailVerified && (
+        <div className="mb-6 flex items-start gap-3 rounded-[20px] border border-amber-500/30 bg-amber-500/10 px-5 py-4">
+          <span className="mt-0.5 shrink-0 text-amber-400" aria-hidden="true">⚠</span>
+          <div>
+            <p className="font-semibold text-amber-200">Your email address is not verified.</p>
+            <p className="mt-1 text-sm text-amber-200/70">
+              Email verification is managed by your platform administrator. Contact{' '}
+              <a href="mailto:devhubadmin@ceg.ac.in" className="underline hover:text-amber-100">
+                devhubadmin@ceg.ac.in
+              </a>{' '}
+              if you need your account verified.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* ── Summary cards ── */}
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="rounded-[24px] border border-border bg-card p-5">
           <p className="text-sm text-muted">Saved hackathons</p>
@@ -262,6 +296,8 @@ export function StudentDashboard() {
       </div>
 
       {error && <p className="mt-4 text-sm text-rose-200" role="alert">{error}</p>}
+
+      {/* ── Upcoming deadlines + Reminders ── */}
       <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_0.8fr]">
         <section className="rounded-[28px] border border-border bg-card p-6">
           <div className="flex items-center justify-between">
@@ -283,7 +319,6 @@ export function StudentDashboard() {
           ) : (
             <div className="mt-4">
               <p className="text-sm text-muted">No saved upcoming deadlines yet.</p>
-              {/* F3: CTA when bookmarks are empty */}
               <Link
                 to="/hackathons"
                 className="mt-3 inline-flex items-center gap-2 rounded-full bg-primary/10 border border-primary/30 px-4 py-2 text-sm font-semibold text-highlight transition hover:bg-primary hover:text-white"
@@ -296,10 +331,8 @@ export function StudentDashboard() {
 
         <section className="rounded-[28px] border border-border bg-card p-6">
           <h2 className="text-xl font-bold text-white">Reminder preferences</h2>
-          {/* B7: key forces form remount after save so inputs show fresh values */}
           <form key={JSON.stringify(dashboard.reminderPreferences)} className="mt-4 space-y-4" onSubmit={savePreferences}>
             <label className="flex items-center gap-3 text-sm text-text">
-              {/* B6: accent-blue-500 replaced with CSS variable */}
               <input
                 className="h-4 w-4"
                 style={{ accentColor: 'rgb(var(--color-primary))' }}
@@ -324,6 +357,7 @@ export function StudentDashboard() {
         </section>
       </div>
 
+      {/* ── Recent notifications ── */}
       <section className="mt-6 rounded-[28px] border border-border bg-card p-6">
         <div className="flex items-center justify-between">
           <h2 className="text-xl font-bold text-white">Recent notifications</h2>
@@ -340,6 +374,15 @@ export function StudentDashboard() {
           </div>
         ) : <p className="mt-4 text-sm text-muted">No notifications yet.</p>}
       </section>
+
+      {/* ── Hint to profile ── */}
+      <div className="mt-6 flex items-center gap-3 rounded-[20px] border border-primary/20 bg-primary/5 px-5 py-4">
+        <span className="text-lg" aria-hidden="true">👤</span>
+        <p className="text-sm text-muted">
+          To update your name, email, or password, click the{' '}
+          <strong className="text-text">profile avatar</strong> in the top-right corner of the navigation bar.
+        </p>
+      </div>
     </StudentShell>
   );
 }

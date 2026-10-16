@@ -15,7 +15,15 @@ export const loginSchema = z.object({
   password: z.string().min(8).max(128),
 });
 
+export const STUDENT_DOMAINS = [
+  'AI/ML', 'Web Development', 'Mobile Development', 'Blockchain',
+  'Cybersecurity', 'IoT', 'Cloud', 'Data Science', 'AR/VR', 'Open Innovation',
+] as const;
+
 export const updateProfileSchema = z.object({
   fullName: z.string().trim().min(2).max(120).optional(),
-  email: z.string().trim().email().optional(),
+  yearOfStudy: z.number().int().min(1).max(7).optional().nullable(),
+  course: z.string().trim().max(120).optional().nullable(),
+  interestedDomains: z.array(z.enum(STUDENT_DOMAINS)).max(10).optional(),
+  // email is intentionally excluded — it cannot be changed after registration
 });

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { apiFetch, API_BASE_URL, getCsrfToken, invalidateCsrfToken } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
+import { PasswordInput } from '../components/PasswordInput';
 
 type LoginReply = {
   success: true;
@@ -165,14 +166,13 @@ export function AdminLoginPage() {
               <span className="mb-1.5 block text-xs font-medium uppercase tracking-[0.15em] text-zinc-400">
                 Password
               </span>
-              <input
+              <PasswordInput
                 name="password"
-                type="password"
                 autoComplete="current-password"
                 required
                 minLength={8}
                 placeholder="••••••••"
-                className="w-full rounded-xl border border-white/10 bg-white/[0.06] px-4 py-3 text-sm text-white placeholder-zinc-600 outline-none transition focus:border-rose-500/60 focus:bg-white/[0.08] focus:ring-2 focus:ring-rose-500/20"
+                className="w-full rounded-xl border border-white/10 bg-white/[0.06] px-4 py-3 pr-10 text-sm text-white placeholder-zinc-600 outline-none transition focus:border-rose-500/60 focus:bg-white/[0.08] focus:ring-2 focus:ring-rose-500/20"
               />
             </label>
 

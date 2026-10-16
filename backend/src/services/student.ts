@@ -95,7 +95,7 @@ export const getBookmarks = async (userId: string, page: number, limit: number) 
 
 export const getDashboardData = async (userId: string) => {
   const user = await User.findById(userId).select(
-    'fullName reminderPreferences emailVerified',
+    'fullName email reminderPreferences emailVerified yearOfStudy course interestedDomains',
   );
   if (!user) return null;
 
@@ -149,7 +149,11 @@ export const getDashboardData = async (userId: string) => {
   return {
     profile: {
       fullName: user.fullName,
+      email: user.email,
       emailVerified: user.emailVerified,
+      yearOfStudy: user.yearOfStudy ?? null,
+      course: user.course ?? null,
+      interestedDomains: user.interestedDomains ?? [],
     },
     summary: {
       bookmarks: bookmarkCount,

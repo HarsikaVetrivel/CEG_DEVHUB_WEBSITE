@@ -166,4 +166,108 @@ router.patch('/hackathons/:id/status', requireCsrf, async (req, res, next) => {
   }
 });
 
+// ── GET /admin/users — list all student accounts ─────────────────
+const userListQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+  q: z.string().optional(),
+  verified: z.enum(['true', 'false']).optional(),
+});
+
+router.get('/users', async (req, res, next) => {
+  try {
+    const parsed = userListQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      return res.status(400).json({ success: false, error: { message: 'Invalid query parameters.' } });
+    }
+    const { page, limit, q, verified } = parsed.data;
+
+    // Inline import to avoid circular deps
+    const User = (await import('../models/User.js')).default;
+
+    const filter: Record<string, unknown> = { role: 'STUDENT' };
+    if (q) filter['$or'] = [
+      { fullName: { $regex: q, $options: 'i' } },
+      { email: { $regex: q, $options: 'i' } },
+    ];
+    if (verified !== undefined) filter['emailVerified'] = verified === 'true';
+
+    const [users, total] = await Promise.all([
+      User.find(filter)
+        .select('fullName email emailVerified isActive yearOfStudy course interestedDomains createdAt')
+        .sort({ createdAt: -1 })
+        .skip((page - 1) * limit)
+        .limit(limit)
+        .lean(),
+      User.countDocuments(filter),
+    ]);
+
+    return res.json({
+      success: true,
+      data: {
+        items: users.map((u) => {
+          const withTs = u as typeof u & { createdAt: Date };
+          return {
+            id: u._id.toString(),
+            fullName: u.fullName,
+            email: u.email,
+            emailVerified: u.emailVerified,
+            isActive: u.isActive,
+            yearOfStudy: u.yearOfStudy ?? null,
+            course: u.course ?? null,
+            interestedDomains: u.interestedDomains ?? [],
+            joinedAt: withTs.createdAt,
+          };
+        }),
+        pagination: {
+          page, limit, total,
+          totalPages: Math.ceil(total / limit),
+        },
+      },
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+// ── PATCH /admin/users/:id/verify — toggle email verification ─────
+router.patch('/users/:id/verify', requireCsrf, async (req, res, next) => {
+  try {
+    const userId = req.params.id;
+    if (!userId || userId.length !== 24) {
+      return res.status(400).json({ success: false, error: { message: 'Invalid user ID.' } });
+    }
+    const { verified } = req.body as { verified?: boolean };
+    if (typeof verified !== 'boolean') {
+      return res.status(400).json({ success: false, error: { message: '`verified` must be a boolean.' } });
+    }
+
+    const User = (await import('../models/User.js')).default;
+    const user = await User.findOneAndUpdate(
+      { _id: userId, role: 'STUDENT' },
+      { $set: { emailVerified: verified } },
+      { returnDocument: 'after' },
+    ).select('fullName email emailVerified');
+
+    if (!user) {
+      return res.status(404).json({ success: false, error: { message: 'Student not found.' } });
+    }
+
+    return res.json({
+      success: true,
+      data: {
+        user: {
+          id: user._id.toString(),
+          fullName: user.fullName,
+          email: user.email,
+          emailVerified: user.emailVerified,
+        },
+        message: verified ? 'Email verified.' : 'Email verification revoked.',
+      },
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
 export default router;

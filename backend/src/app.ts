@@ -12,6 +12,7 @@ import hackathonsRouter from './routes/hackathons.js';
 import healthRouter from './routes/health.js';
 import studentRouter from './routes/student.js';
 import adminRouter from './routes/admin.js';
+import statsRouter from './routes/stats.js';
 
 export const app = express();
 
@@ -102,6 +103,7 @@ app.use('/api/v1/auth', authRateLimit, authRouter);
 app.use('/api/v1/hackathons', hackathonsRouter);
 app.use('/api/v1/student', studentRouter);
 app.use('/api/v1/admin', adminRouter);
+app.use('/api/v1/stats', statsRouter);
 app.use('/api/v1/health', healthRouter);
 
 app.use(notFoundHandler);

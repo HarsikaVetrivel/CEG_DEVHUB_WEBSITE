@@ -346,8 +346,8 @@ function DeleteModal({ hackathon, onClose, onDeleted }: { hackathon: AdminHackat
   );
 }
 
-// ── Main Admin Page ────────────────────────────────────────────────
-export function AdminPage() {
+// ── Hackathons inner panel (no shell — AdminHome provides it) ────
+function HackathonsPageInner() {
   const navigate = useNavigate();
   const [hackathons, setHackathons] = useState<AdminHackathon[]>([]);
   const [pagination, setPagination] = useState<Pagination>({ page: 1, limit: 20, total: 0, totalPages: 1 });
@@ -418,12 +418,12 @@ export function AdminPage() {
     d ? new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeZone: 'UTC' }).format(new Date(d)) : '—';
 
   return (
-    <AdminShell>
+    <div>
       {/* Page header */}
       <div className="mb-6 flex items-center justify-between gap-4">
         <div>
           <p className="text-sm font-medium uppercase tracking-[0.2em] text-highlight">Admin</p>
-          <h1 className="mt-1 text-3xl font-black text-white">Hackathon Management</h1>
+          <h2 className="mt-1 text-2xl font-bold text-white">Hackathon Management</h2>
         </div>
         <button
           onClick={() => setFormTarget('new')}
@@ -561,6 +561,249 @@ export function AdminPage() {
           onDeleted={onDeleted}
         />
       )}
+    </div>
+  );
+}
+
+// ══ Users / Verification Page ════════════════════════════════════════
+
+type AdminUser = {
+  id: string;
+  fullName: string;
+  email: string;
+  emailVerified: boolean;
+  isActive: boolean;
+  yearOfStudy: number | null;
+  course: string | null;
+  interestedDomains: string[];
+  joinedAt: string;
+};
+
+function UsersPage() {
+  const [users, setUsers] = useState<AdminUser[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [search, setSearch] = useState('');
+  const [filterVerified, setFilterVerified] = useState<'' | 'true' | 'false'>('');
+  const [loading, setLoading] = useState(false);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [error, setError] = useState('');
+
+  const load = async (p = 1) => {
+    setLoading(true);
+    setError('');
+    try {
+      const params = new URLSearchParams({ page: String(p), limit: '20' });
+      if (search.trim()) params.set('q', search.trim());
+      if (filterVerified) params.set('verified', filterVerified);
+      const res = await apiFetch<{
+        data: { items: AdminUser[]; pagination: { total: number; totalPages: number } };
+      }>(`/api/v1/admin/users?${params}`);
+      setUsers(res.data.items);
+      setTotal(res.data.pagination.total);
+      setTotalPages(res.data.pagination.totalPages);
+      setPage(p);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load users.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { void load(1); }, [search, filterVerified]);
+
+  const toggleVerify = async (user: AdminUser) => {
+    setBusyId(user.id);
+    try {
+      const csrfToken = await getCsrfToken();
+      await apiFetch(`/api/v1/admin/users/${user.id}/verify`, {
+        method: 'PATCH',
+        headers: { 'X-CSRF-Token': csrfToken },
+        body: JSON.stringify({ verified: !user.emailVerified }),
+      });
+      setUsers((prev) =>
+        prev.map((u) => u.id === user.id ? { ...u, emailVerified: !user.emailVerified } : u),
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update verification.');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-white">Student Accounts</h1>
+          <p className="mt-1 text-sm text-muted">{total} registered student{total !== 1 ? 's' : ''}</p>
+        </div>
+        {/* Filters */}
+        <div className="flex flex-wrap items-center gap-3">
+          <input
+            className="filter-input w-48"
+            placeholder="Search name or email…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+          <select
+            className="filter-input"
+            value={filterVerified}
+            onChange={(e) => setFilterVerified(e.target.value as '' | 'true' | 'false')}
+          >
+            <option value="">All statuses</option>
+            <option value="true">Verified only</option>
+            <option value="false">Unverified only</option>
+          </select>
+        </div>
+      </div>
+
+      {error && (
+        <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-200" role="alert">
+          {error}
+        </div>
+      )}
+
+      {loading ? (
+        <div className="space-y-3">
+          {Array.from({ length: 6 }, (_, i) => (
+            <div key={i} className="h-16 animate-pulse rounded-2xl bg-card" />
+          ))}
+        </div>
+      ) : users.length === 0 ? (
+        <div className="rounded-[28px] border border-border bg-card py-16 text-center">
+          <p className="text-4xl">👥</p>
+          <p className="mt-4 text-lg font-semibold text-white">No students found</p>
+          <p className="mt-2 text-sm text-muted">Try adjusting your search or filter.</p>
+        </div>
+      ) : (
+        <div className="overflow-hidden rounded-[28px] border border-border bg-card">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border text-left text-xs uppercase tracking-[0.15em] text-muted">
+                <th className="px-5 py-3.5">Student</th>
+                <th className="px-4 py-3.5 hidden sm:table-cell">Year / Course</th>
+                <th className="px-4 py-3.5 hidden md:table-cell">Domains</th>
+                <th className="px-4 py-3.5">Joined</th>
+                <th className="px-4 py-3.5 text-right">Verification</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {users.map((user) => (
+                <tr key={user.id} className="hover:bg-background/40 transition-colors">
+                  <td className="px-5 py-3.5">
+                    <div className="flex items-center gap-3">
+                      {/* Avatar initials */}
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/20 text-xs font-bold text-highlight">
+                        {user.fullName.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase()}
+                      </span>
+                      <div>
+                        <p className="font-medium text-text">{user.fullName}</p>
+                        <p className="text-xs text-muted">{user.email}</p>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-4 py-3.5 hidden sm:table-cell text-muted">
+                    {user.yearOfStudy ? `Year ${user.yearOfStudy}` : '—'}
+                    {user.course && <span className="block text-xs">{user.course}</span>}
+                  </td>
+                  <td className="px-4 py-3.5 hidden md:table-cell">
+                    <div className="flex flex-wrap gap-1">
+                      {user.interestedDomains.slice(0, 3).map((d) => (
+                        <span key={d} className="rounded-full border border-border bg-background/60 px-2 py-0.5 text-xs text-muted">
+                          {d}
+                        </span>
+                      ))}
+                      {user.interestedDomains.length > 3 && (
+                        <span className="text-xs text-muted">+{user.interestedDomains.length - 3}</span>
+                      )}
+                      {user.interestedDomains.length === 0 && <span className="text-xs text-muted">—</span>}
+                    </div>
+                  </td>
+                  <td className="px-4 py-3.5 text-muted text-xs">
+                    {new Date(user.joinedAt).toLocaleDateString()}
+                  </td>
+                  <td className="px-4 py-3.5 text-right">
+                    <button
+                      type="button"
+                      disabled={busyId === user.id}
+                      onClick={() => toggleVerify(user)}
+                      className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition disabled:opacity-50 ${
+                        user.emailVerified
+                          ? 'border-emerald-500/40 bg-emerald-500/15 text-emerald-300 hover:bg-rose-500/15 hover:text-rose-300 hover:border-rose-500/40'
+                          : 'border-amber-500/40 bg-amber-500/15 text-amber-300 hover:bg-emerald-500/15 hover:text-emerald-300 hover:border-emerald-500/40'
+                      }`}
+                      title={user.emailVerified ? 'Click to revoke verification' : 'Click to verify this student'}
+                    >
+                      {busyId === user.id ? '…' : user.emailVerified ? '✓ Verified' : '⚠ Unverified'}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-center gap-3">
+          <button
+            className="rounded-full border border-border px-4 py-2 text-sm text-muted transition hover:text-text disabled:opacity-40"
+            disabled={page <= 1}
+            onClick={() => load(page - 1)}
+          >
+            ← Previous
+          </button>
+          <span className="text-sm text-muted">Page {page} of {totalPages}</span>
+          <button
+            className="rounded-full border border-border px-4 py-2 text-sm text-muted transition hover:text-text disabled:opacity-40"
+            disabled={page >= totalPages}
+            onClick={() => load(page + 1)}
+          >
+            Next →
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ══ Tabbed Admin Home ════════════════════════════════════════════════
+type AdminTab = 'hackathons' | 'users';
+
+export function AdminHome() {
+  const [activeTab, setActiveTab] = useState<AdminTab>('hackathons');
+
+  const tabs: { id: AdminTab; label: string; icon: string }[] = [
+    { id: 'hackathons', label: 'Hackathon Management', icon: '🏆' },
+    { id: 'users', label: 'User Verification', icon: '👥' },
+  ];
+
+  return (
+    <AdminShell>
+      {/* Tab bar */}
+      <div className="mb-6 flex gap-1 rounded-[20px] border border-border bg-card p-1">
+        {tabs.map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            onClick={() => setActiveTab(tab.id)}
+            className={`flex flex-1 items-center justify-center gap-2 rounded-[16px] py-2.5 text-sm font-medium transition ${
+              activeTab === tab.id
+                ? 'bg-primary/20 text-highlight'
+                : 'text-muted hover:text-text'
+            }`}
+          >
+            <span aria-hidden="true">{tab.icon}</span>
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {activeTab === 'hackathons' && <HackathonsPageInner />}
+      {activeTab === 'users' && <UsersPage />}
     </AdminShell>
   );
 }

@@ -20,6 +20,9 @@ export interface IUser extends Document {
   role: UserRole;
   emailVerified: boolean;
   isActive: boolean;
+  yearOfStudy?: number;
+  course?: string;
+  interestedDomains: string[];
   reminderPreferences: {
     enabled: boolean;
     daysBefore: number[];
@@ -74,6 +77,22 @@ const userSchema = new mongoose.Schema<IUser, UserModel, IUserMethods>(
     reminderPreferences: {
       type: reminderPreferencesSchema,
       default: () => ({}),
+    },
+    yearOfStudy: {
+      type: Number,
+      min: 1,
+      max: 7,
+      default: null,
+    },
+    course: {
+      type: String,
+      trim: true,
+      maxlength: 120,
+      default: null,
+    },
+    interestedDomains: {
+      type: [String],
+      default: [],
     },
     lastLoginAt: {
       type: Date,

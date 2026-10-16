@@ -2,10 +2,13 @@ import { randomBytes } from 'node:crypto';
 import { Router } from 'express';
 import { z } from 'zod';
 
-import { loginSchema, registerSchema } from '../validators/auth.js';
+import { loginSchema, registerSchema, updateProfileSchema } from '../validators/auth.js';
 import { createError } from '../utils/errors.js';
 import User from '../models/User.js';
-import { registerUser, findUserByEmail } from '../services/auth.js';
+import {
+  registerUser, findUserByEmail, updateProfile, changePassword,
+  forgotPassword, resetPassword,
+} from '../services/auth.js';
 import { requireAuth } from '../middleware/auth.js';
 import { csrfTokenHandler, requireCsrf } from '../middleware/csrf.js';
 
@@ -144,8 +147,110 @@ router.get('/me', requireAuth, async (req, res, next) => {
           role: user.role,
           emailVerified: user.emailVerified,
           isActive: user.isActive,
+          yearOfStudy: user.yearOfStudy ?? null,
+          course: user.course ?? null,
+          interestedDomains: user.interestedDomains ?? [],
         },
       },
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+/**
+ * PATCH /api/v1/auth/profile
+ * Update current user's full name and/or email.
+ */
+router.patch('/profile', requireAuth, requireCsrf, async (req, res, next) => {
+  try {
+    const parsed = updateProfileSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({
+        success: false,
+        error: { message: 'Validation failed.', details: parsed.error.flatten() },
+      });
+    }
+    const updated = await updateProfile(req.user!.id, parsed.data);
+    return res.json({ success: true, data: { user: updated } });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+/**
+ * PATCH /api/v1/auth/password
+ * Change current user's password. Requires the current password for verification.
+ */
+const changePasswordSchema = z.object({
+  currentPassword: z.string().min(1, 'Current password is required.'),
+  newPassword: z.string().min(8).max(128),
+  confirmNewPassword: z.string().min(8).max(128),
+}).refine((d) => d.newPassword === d.confirmNewPassword, {
+  message: 'New passwords do not match.',
+  path: ['confirmNewPassword'],
+});
+
+router.patch('/password', requireAuth, requireCsrf, async (req, res, next) => {
+  try {
+    const parsed = changePasswordSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({
+        success: false,
+        error: { message: 'Validation failed.', details: parsed.error.flatten() },
+      });
+    }
+    await changePassword(req.user!.id, {
+      currentPassword: parsed.data.currentPassword,
+      newPassword: parsed.data.newPassword,
+    });
+    return res.json({ success: true, data: { message: 'Password updated successfully.' } });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+// ── POST /auth/forgot-password ───────────────────────────────────
+router.post('/forgot-password', requireCsrf, async (req, res, next) => {
+  try {
+    const { email } = req.body as { email?: string };
+    if (!email || typeof email !== 'string') {
+      return res.status(400).json({ success: false, error: { message: 'Email is required.' } });
+    }
+    // Always returns success to prevent email enumeration
+    await forgotPassword(email);
+    return res.json({
+      success: true,
+      data: { message: 'If an account with that email exists, a reset link has been sent.' },
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+// ── POST /auth/reset-password ─────────────────────────────────────
+const resetPasswordSchema = z.object({
+  token: z.string().min(1),
+  newPassword: z.string().min(8).max(128),
+  confirmNewPassword: z.string().min(8).max(128),
+}).refine((d) => d.newPassword === d.confirmNewPassword, {
+  message: 'Passwords do not match.',
+  path: ['confirmNewPassword'],
+});
+
+router.post('/reset-password', requireCsrf, async (req, res, next) => {
+  try {
+    const parsed = resetPasswordSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({
+        success: false,
+        error: { message: 'Validation failed.', details: parsed.error.flatten() },
+      });
+    }
+    const result = await resetPassword(parsed.data.token, parsed.data.newPassword);
+    return res.json({
+      success: true,
+      data: { message: 'Password reset successfully. You can now sign in.', email: result.email },
     });
   } catch (error) {
     return next(error);

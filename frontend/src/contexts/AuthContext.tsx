@@ -6,6 +6,9 @@ export type AuthUser = {
   fullName: string;
   email: string;
   role: 'STUDENT' | 'ADMIN';
+  yearOfStudy: number | null;
+  course: string | null;
+  interestedDomains: string[];
 };
 
 export type AuthStatus = 'loading' | 'authenticated' | 'unauthenticated';

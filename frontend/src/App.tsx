@@ -3,8 +3,10 @@ import { HackathonDetails, HackathonDirectory } from './pages/Hackathons';
 import { AuthPage, BookmarksPage, NotificationsPage, StudentDashboard } from './pages/Student';
 import { LandingPage } from './pages/Landing';
 import { NotFoundPage } from './pages/NotFoundPage';
-import { AdminPage } from './pages/AdminPage';
+import { AdminHome } from './pages/AdminPage';
 import { AdminLoginPage } from './pages/AdminLoginPage';
+import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
+import { ResetPasswordPage } from './pages/ResetPasswordPage';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { AdminRoute } from './components/AdminRoute';
 
@@ -15,6 +17,8 @@ function App() {
       <Route path="/" element={<LandingPage />} />
       <Route path="/login"    element={<AuthPage key="login"    mode="login"    />} />
       <Route path="/register" element={<AuthPage key="register" mode="register" />} />
+      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+      <Route path="/reset-password"  element={<ResetPasswordPage />} />
       <Route path="/admin/login" element={<AdminLoginPage />} />
 
       {/* Protected routes — require authentication */}
@@ -63,7 +67,7 @@ function App() {
         path="/admin"
         element={
           <AdminRoute>
-            <AdminPage />
+            <AdminHome />
           </AdminRoute>
         }
       />
