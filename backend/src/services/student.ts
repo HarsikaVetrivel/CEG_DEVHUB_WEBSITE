@@ -7,6 +7,11 @@ import ReminderDelivery from '../models/ReminderDelivery.js';
 import User from '../models/User.js';
 import { getReminderKey, syncAllUserReminders, syncBookmarkReminders } from './reminders.js';
 
+/**
+ * Creates a bookmark linking a user to a published hackathon.
+ * Idempotent — re-bookmarking the same hackathon is a no-op.
+ * Triggers reminder sync for the new bookmark.
+ */
 export const createBookmark = async (userId: string, hackathonId: string) => {
   const hackathon = await Hackathon.findOne({
     _id: hackathonId,
@@ -14,15 +19,21 @@ export const createBookmark = async (userId: string, hackathonId: string) => {
   }).select('_id');
   if (!hackathon) return null;
 
+  // upsert: true + $setOnInsert ensures we don't overwrite an existing bookmark.
+  // createdAt is managed automatically by Mongoose timestamps: true.
   await Bookmark.updateOne(
     { userId, hackathonId },
-    { $setOnInsert: { userId, hackathonId, createdAt: new Date() } },
+    { $setOnInsert: { userId, hackathonId } },
     { upsert: true },
   );
   await syncBookmarkReminders(userId, hackathonId);
   return { bookmarked: true };
 };
 
+/**
+ * Removes a bookmark and cancels any pending reminder deliveries
+ * so they never fire after the user stops tracking this hackathon.
+ */
 export const removeBookmark = async (userId: string, hackathonId: string) => {
   const result = await Bookmark.deleteOne({ userId, hackathonId });
   await ReminderDelivery.updateMany(
@@ -32,6 +43,10 @@ export const removeBookmark = async (userId: string, hackathonId: string) => {
   return { bookmarked: false, removed: result.deletedCount > 0 };
 };
 
+/**
+ * Returns a paginated list of the user's bookmarked PUBLISHED hackathons,
+ * sorted by upcoming registration deadline.
+ */
 export const getBookmarks = async (userId: string, page: number, limit: number) => {
   const objectUserId = new mongoose.Types.ObjectId(userId);
   const [result] = await Bookmark.aggregate([
@@ -93,6 +108,13 @@ export const getBookmarks = async (userId: string, page: number, limit: number) 
   };
 };
 
+/**
+ * Assembles all dashboard data for a student in a single compound query:
+ * - profile fields
+ * - bookmark count + unread notification count
+ * - the 5 soonest upcoming bookmarked deadlines
+ * - the 5 most recent notifications
+ */
 export const getDashboardData = async (userId: string) => {
   const user = await User.findById(userId).select(
     'fullName email reminderPreferences emailVerified yearOfStudy course interestedDomains',
@@ -165,6 +187,7 @@ export const getDashboardData = async (userId: string) => {
   };
 };
 
+/** Returns a paginated list of all notifications for a user, newest first. */
 export const getNotifications = async (userId: string, page: number, limit: number) => {
   const [items, total] = await Promise.all([
     Notification.find({ userId })
@@ -189,6 +212,7 @@ export const getNotifications = async (userId: string, page: number, limit: numb
   };
 };
 
+/** Marks a single notification as read. Returns null if not found / unauthorised. */
 export const markNotificationRead = async (userId: string, notificationId: string) => {
   const notification = await Notification.findOneAndUpdate(
     { _id: notificationId, userId },
@@ -198,6 +222,10 @@ export const markNotificationRead = async (userId: string, notificationId: strin
   return notification;
 };
 
+/**
+ * Persists updated reminder preferences and triggers a full reminder
+ * re-sync so scheduled deliveries reflect the new settings immediately.
+ */
 export const updateReminderPreferences = async (
   userId: string,
   preferences: { enabled: boolean; daysBefore: number[]; timeZone: string },
@@ -211,6 +239,11 @@ export const updateReminderPreferences = async (
   return user?.reminderPreferences ?? null;
 };
 
+/**
+ * Returns the bookmark state and active reminder delivery records for a
+ * specific hackathon, as seen by a specific student.
+ * Used by the BookmarkButton component to initialise its state.
+ */
 export const getStudentListingState = async (userId: string, hackathonId: string) => {
   const [bookmarked, hackathon, user] = await Promise.all([
     Bookmark.exists({ userId, hackathonId }),

@@ -38,18 +38,24 @@ export const registerUser = async (input: {
   };
 };
 
+/**
+ * Looks up a user by their normalised email address, including the hashed
+ * password (excluded by default via `select: false`).
+ */
 export const findUserByEmail = async (email: string) => {
   const normalizedEmail = email.trim().toLowerCase();
-  const usernamePrefix = normalizedEmail.includes('@') ? normalizedEmail.split('@')[0] : normalizedEmail;
-  return User.findOne({
-    $or: [{ email: normalizedEmail }, { email: usernamePrefix }],
-  }).select('+passwordHash');
+  return User.findOne({ email: normalizedEmail }).select('+passwordHash');
 };
 
+/** Returns a User document by ID (password excluded). */
 export const findUserById = async (userId: string) => {
   return User.findById(userId);
 };
 
+/**
+ * Updates mutable profile fields for a student.
+ * Email is intentionally excluded — it is set at registration and cannot change.
+ */
 export const updateProfile = async (
   userId: string,
   input: {
@@ -80,6 +86,7 @@ export const updateProfile = async (
   };
 };
 
+/** Verifies the current password then replaces it with a new bcrypt hash. */
 export const changePassword = async (
   userId: string,
   input: { currentPassword: string; newPassword: string },
@@ -95,6 +102,12 @@ export const changePassword = async (
   return true;
 };
 
+/**
+ * Initiates a password-reset flow for a STUDENT account.
+ * Always returns without error even if the email is not found —
+ * prevents user enumeration attacks.
+ * Admin accounts cannot reset passwords via this flow.
+ */
 export const forgotPassword = async (email: string) => {
   const normalizedEmail = email.trim().toLowerCase();
   const user = await User.findOne({ email: normalizedEmail, role: 'STUDENT' });
@@ -118,6 +131,10 @@ export const forgotPassword = async (email: string) => {
   await sendPasswordResetEmail(user.email, user.fullName, rawToken);
 };
 
+/**
+ * Validates the raw reset token, updates the password, then marks the
+ * token as used so it cannot be replayed.
+ */
 export const resetPassword = async (rawToken: string, newPassword: string) => {
   const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
 
@@ -144,14 +161,3 @@ export const resetPassword = async (rawToken: string, newPassword: string) => {
   return { email: user.email };
 };
 
-export const ensureAdminRole = (role: string | undefined) => {
-  if (role !== 'ADMIN') {
-    throw createError(403, 'You do not have permission to access this resource.');
-  }
-};
-
-export const isAllowedRole = (role: string | undefined, allowedRoles: readonly UserRole[]) => {
-  return role !== undefined && allowedRoles.includes(role as UserRole);
-};
-
-export const roleOptions = USER_ROLES;

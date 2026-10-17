@@ -1,7 +1,5 @@
 import nodemailer from 'nodemailer';
-
-const FROM_ADDRESS = process.env.SMTP_FROM ?? 'CEG DEV HUB <noreply@cegdevhub.local>';
-const APP_URL = process.env.APP_URL ?? 'http://localhost:5173';
+import { env } from '../config/env.js';
 
 /**
  * Sends a password reset email.
@@ -14,22 +12,22 @@ export async function sendPasswordResetEmail(
   toName: string,
   rawToken: string,
 ): Promise<void> {
-  const resetUrl = `${APP_URL}/reset-password?token=${encodeURIComponent(rawToken)}`;
+  const resetUrl = `${env.APP_URL}/reset-password?token=${encodeURIComponent(rawToken)}`;
 
   // ── Real SMTP delivery ─────────────────────────────────────────────
-  if (process.env.SMTP_HOST) {
+  if (env.SMTP_HOST) {
     const transport = nodemailer.createTransport({
-      host: process.env.SMTP_HOST,
-      port: Number(process.env.SMTP_PORT ?? 587),
-      secure: process.env.SMTP_SECURE === 'true',
+      host: env.SMTP_HOST,
+      port: env.SMTP_PORT,
+      secure: env.SMTP_SECURE,
       auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS,
+        user: env.SMTP_USER,
+        pass: env.SMTP_PASS,
       },
     });
 
     await transport.sendMail({
-      from: FROM_ADDRESS,
+      from: env.SMTP_FROM,
       to: `${toName} <${toEmail}>`,
       subject: 'Reset your CEG DEV HUB password',
       text: `
@@ -85,3 +83,4 @@ If you did not request this, you can safely ignore this email.
   console.log('│  Link expires in 1 hour.');
   console.log('└─────────────────────────────────────────────────────┘\n');
 }
+

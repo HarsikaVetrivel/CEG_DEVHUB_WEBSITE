@@ -2,19 +2,11 @@ import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 
 import { API_BASE_URL, apiFetch, getCsrfToken } from '../lib/api';
+import { useAuth } from '../contexts/AuthContext';
+import { DOMAINS } from '../lib/constants';
 import { Navbar } from '../components/Navbar';
-const domains = [
-  'AI/ML',
-  'Web Development',
-  'Mobile Development',
-  'Blockchain',
-  'Cybersecurity',
-  'IoT',
-  'Cloud',
-  'Data Science',
-  'AR/VR',
-  'Open Innovation',
-];
+// Domain list is imported from lib/constants — do not duplicate here
+
 const modes = ['ONLINE', 'OFFLINE', 'HYBRID'] as const;
 const statuses = ['UPCOMING', 'ONGOING', 'REGISTRATION_OPEN', 'REGISTRATION_CLOSED'] as const;
 
@@ -150,6 +142,7 @@ function ListingCard({ hackathon }: { hackathon: Hackathon }) {
 }
 
 function BookmarkButton({ hackathonId, name }: { hackathonId: string; name: string }) {
+  const { user } = useAuth();
   const [bookmarked, setBookmarked] = useState(false);
   const [knownSignedIn, setKnownSignedIn] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -157,6 +150,8 @@ function BookmarkButton({ hackathonId, name }: { hackathonId: string; name: stri
   const navigate = useNavigate();
 
   useEffect(() => {
+    // BUG-07: Admins must not call student endpoints — skip state fetch entirely
+    if (user?.role === 'ADMIN') return;
     const controller = new AbortController();
     fetch(`${API_BASE_URL}/api/v1/student/bookmarks/${hackathonId}/state`, {
       credentials: 'include',
@@ -198,6 +193,9 @@ function BookmarkButton({ hackathonId, name }: { hackathonId: string; name: stri
       setBusy(false);
     }
   };
+
+  // BUG-07: Admins see the hackathon directory but have no bookmarks — hide the button
+  if (user?.role === 'ADMIN') return null;
 
   return (
     <span className="relative">
@@ -369,7 +367,7 @@ export function HackathonDiscovery() {
                 <span className="mb-2 block text-sm font-medium text-muted">Domain</span>
                 <select className="filter-input" value={domain} onChange={(event) => setDomain(event.target.value)}>
                   <option value="">All domains</option>
-                  {domains.map((value) => <option key={value}>{value}</option>)}
+                  {DOMAINS.map((value) => <option key={value}>{value}</option>)}
                 </select>
               </label>
               <label>
@@ -722,7 +720,7 @@ export function HackathonDirectory() {
             onChange={(e) => { setDomain(e.target.value); setPage(1); }}
           >
             <option value="">All domains</option>
-            {domains.map((d) => <option key={d} value={d}>{d}</option>)}
+            {DOMAINS.map((d) => <option key={d} value={d}>{d}</option>)}
           </select>
 
           {/* Sort */}

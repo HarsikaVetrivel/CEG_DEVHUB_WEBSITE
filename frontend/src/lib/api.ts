@@ -17,12 +17,19 @@ export const getErrorMessage = (body: unknown, fallback: string) => {
 };
 
 // ── CSRF token cache ─────────────────────────────────────────────
-// Token is per-session. Call invalidateCsrfToken() on logout or
-// when the server returns 403 (token invalidated after re-login).
+// Token is per-session. The server mints a fresh token on every login
+// and returns it in the login response body. Call seedCsrfToken() with
+// that value immediately after login so mutations don't use a stale token
+// from a previous session. Call invalidateCsrfToken() on logout.
 let _csrfToken: string | null = null;
 
 export const invalidateCsrfToken = (): void => {
   _csrfToken = null;
+};
+
+/** Prime the cache with the token returned by the login response. */
+export const seedCsrfToken = (token: string): void => {
+  _csrfToken = token;
 };
 
 export const getCsrfToken = async (): Promise<string> => {

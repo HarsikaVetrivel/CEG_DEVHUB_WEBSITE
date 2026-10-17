@@ -53,7 +53,7 @@ const listQuerySchema = z.object({
   listingStatus: z.enum(HACKATHON_LISTING_STATUSES).optional(),
 });
 
-const idParamSchema = z.object({ id: z.string().min(24).max(24) });
+const idParamSchema = z.object({ id: z.string().regex(/^[a-f\d]{24}$/i, 'Invalid hackathon ID.') });
 
 const statusBodySchema = z.object({
   listingStatus: z.enum(HACKATHON_LISTING_STATUSES),

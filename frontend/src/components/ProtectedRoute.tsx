@@ -3,23 +3,23 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
 /**
- * Wraps a route so it is only accessible to authenticated users.
- * Reads from the shared AuthContext (set once on app load via /auth/me)
- * so no extra network call fires on every page navigation.
- *
+ * Wraps a route so it is only accessible to authenticated STUDENT users.
  * - 'loading'         → spinner (with 10-s backend timeout via AuthContext)
  * - 'unauthenticated' → redirect to /login
- * - 'authenticated'   → render children
+ * - ADMIN role        → redirect to /admin (prevents 403 flood on student API)
+ * - STUDENT role      → render children
  */
 export function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { status } = useAuth();
+  const { status, user } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
     if (status === 'unauthenticated') {
       navigate('/login', { replace: true });
+    } else if (status === 'authenticated' && user?.role === 'ADMIN') {
+      navigate('/admin', { replace: true });
     }
-  }, [status, navigate]);
+  }, [status, user, navigate]);
 
   if (status === 'loading') {
     return (
@@ -32,7 +32,7 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (status === 'unauthenticated') return null;
+  if (status !== 'authenticated' || user?.role !== 'STUDENT') return null;
 
   return <>{children}</>;
 }

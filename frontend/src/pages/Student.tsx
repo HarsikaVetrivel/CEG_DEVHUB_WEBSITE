@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 
-import { apiFetch, getCsrfToken } from '../lib/api';
+import { apiFetch, getCsrfToken, seedCsrfToken } from '../lib/api';
 import { Navbar } from '../components/Navbar';
 import { PasswordInput } from '../components/PasswordInput';
 import { useAuth } from '../contexts/AuthContext';
@@ -15,6 +15,8 @@ type UserSummary = {
 
 type AuthReply = {
   success: true;
+  // Server returns the new session's CSRF token so the next mutation
+  // does not use a stale token from a previous session (BUG-02)
   data: { user: UserSummary; csrfToken?: string };
 };
 
@@ -96,14 +98,14 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
   const navigate = useNavigate();
-  const { status, refresh } = useAuth();
+  const { status, user, refresh } = useAuth();
 
-  // F2: Redirect away if the user is already logged in
+  // BUG-04: also redirect ADMIN users who land here — they belong at /admin
   useEffect(() => {
     if (status === 'authenticated') {
-      navigate('/hackathons', { replace: true });
+      navigate(user?.role === 'ADMIN' ? '/admin' : '/hackathons', { replace: true });
     }
-  }, [status, navigate]);
+  }, [status, user, navigate]);
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -118,7 +120,7 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
 
     try {
       const csrfToken = await getCsrfToken();
-      await apiFetch<AuthReply>(`/api/v1/auth/${mode}`, {
+      const response = await apiFetch<AuthReply>(`/api/v1/auth/${mode}`, {
         method: 'POST',
         headers: { 'X-CSRF-Token': csrfToken },
         body: JSON.stringify(
@@ -132,9 +134,12 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
         setNotice('Account created! Redirecting to sign in…');
         setTimeout(() => navigate('/login', { replace: true }), 2000);
       } else {
-        // Update shared auth state then navigate
+        // BUG-02: Seed the CSRF cache with the fresh token from the new session
+        if (response.data.csrfToken) seedCsrfToken(response.data.csrfToken);
+        // BUG-04: Admin who mistakenly uses the student login goes to /admin
+        const dest = response.data.user.role === 'ADMIN' ? '/admin' : '/hackathons';
         refresh();
-        navigate('/hackathons', { replace: true });
+        navigate(dest, { replace: true });
       }
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Unable to continue.');
@@ -206,16 +211,20 @@ export function StudentDashboard() {
   const [dashboard, setDashboard] = useState<Dashboard>();
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  // BUG-09: explicit loading state so a spinner always shows on first load
+  const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
   const load = () => {
+    setLoading(true);
     apiFetch<{ success: true; data: Dashboard }>('/api/v1/student/dashboard')
       .then((response) => setDashboard(response.data))
       .catch((cause: unknown) => {
         const message = cause instanceof Error ? cause.message : 'Unable to load your dashboard.';
         if (message === 'Authentication required.') navigate('/login', { replace: true });
         else setError(message);
-      });
+      })
+      .finally(() => setLoading(false));
   };
 
   useEffect(() => {
@@ -261,7 +270,8 @@ export function StudentDashboard() {
       </StudentShell>
     );
   }
-  if (!dashboard) return <StudentShell title="Student dashboard"><div className="h-72 animate-pulse rounded-[28px] bg-card" /></StudentShell>;
+  // BUG-09: show spinner while first load is in flight
+  if (loading || !dashboard) return <StudentShell title="Student dashboard"><div className="h-72 animate-pulse rounded-[28px] bg-card" /></StudentShell>;
 
   return (
     <StudentShell title={`Welcome, ${dashboard.profile.fullName}`}>

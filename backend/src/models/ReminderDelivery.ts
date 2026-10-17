@@ -33,5 +33,18 @@ const reminderDeliverySchema = new mongoose.Schema(
 reminderDeliverySchema.index({ status: 1, scheduledAt: 1 });
 reminderDeliverySchema.index({ userId: 1, hackathonId: 1, deadlineAt: 1 });
 
+// TTL index — MongoDB automatically deletes terminal records (SENT, CANCELLED, FAILED)
+// 90 days after their last update, keeping the collection from growing unboundedly.
+// PENDING and PROCESSING records are not removed because their `updatedAt` keeps
+// advancing as they are processed.
+reminderDeliverySchema.index(
+  { updatedAt: 1 },
+  {
+    expireAfterSeconds: 90 * 24 * 60 * 60, // 90 days
+    partialFilterExpression: { status: { $in: ['SENT', 'CANCELLED', 'FAILED'] } },
+    name: 'ttl_terminal_records',
+  },
+);
+
 export default mongoose.models.ReminderDelivery ??
   mongoose.model('ReminderDelivery', reminderDeliverySchema);

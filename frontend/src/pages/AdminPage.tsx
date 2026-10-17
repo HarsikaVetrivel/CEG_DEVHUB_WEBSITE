@@ -1,7 +1,8 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { apiFetch, getCsrfToken } from '../lib/api';
 import { Navbar } from '../components/Navbar';
+import { DOMAINS } from '../lib/constants';
 
 // ── Types ──────────────────────────────────────────────────────────
 type HackathonListingStatus = 'PENDING' | 'PUBLISHED' | 'ARCHIVED' | 'REJECTED';
@@ -40,10 +41,7 @@ const MODES: HackathonMode[] = ['ONLINE', 'OFFLINE', 'HYBRID'];
 const LIFECYCLE_STATUSES: HackathonLifecycleStatus[] = ['UPCOMING', 'REGISTRATION_OPEN', 'ONGOING', 'REGISTRATION_CLOSED'];
 const LISTING_STATUSES: HackathonListingStatus[] = ['PENDING', 'PUBLISHED', 'ARCHIVED', 'REJECTED'];
 const SOURCE_TYPES = ['ADMIN', 'API', 'RSS', 'ORGANIZER_FEED', 'MANUAL'];
-const DOMAINS = [
-  'AI/ML', 'Web Development', 'Mobile Development', 'Blockchain',
-  'Cybersecurity', 'IoT', 'Cloud', 'Data Science', 'AR/VR', 'Open Innovation',
-];
+// DOMAINS is imported from lib/constants — single source of truth shared with ProfileDrawer
 
 const STATUS_COLORS: Record<HackathonListingStatus, string> = {
   PENDING:   'bg-amber-500/15 text-amber-300 border-amber-500/30',
@@ -359,7 +357,9 @@ function HackathonsPageInner() {
   const [deleteTarget, setDeleteTarget] = useState<AdminHackathon | null>(null);
   const [statusBusy, setStatusBusy] = useState<string | null>(null);
 
-  const load = async (page = 1) => {
+  // BUG-08: useCallback gives load a stable reference so pagination calls
+  // always close over the current search/statusFilter values
+  const load = useCallback(async (page = 1) => {
     setLoading(true);
     setError('');
     try {
@@ -373,17 +373,18 @@ function HackathonsPageInner() {
       setPagination(response.data.pagination);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Unable to load hackathons.';
+      // BUG-01: send admin to the admin login, not the student login
       if (msg === 'Authentication required.' || msg.includes('permission')) {
-        navigate('/login', { replace: true });
+        navigate('/admin/login', { replace: true });
       } else {
         setError(msg);
       }
     } finally {
       setLoading(false);
     }
-  };
+  }, [search, statusFilter, navigate]);
 
-  useEffect(() => { void load(1); }, [search, statusFilter]);
+  useEffect(() => { void load(1); }, [load]);
 
   const handleStatusChange = async (hackathon: AdminHackathon, status: HackathonListingStatus) => {
     setStatusBusy(hackathon._id);
@@ -401,7 +402,10 @@ function HackathonsPageInner() {
     }
   };
 
+  // BUG-10: always clear the page-level error when a modal action succeeds
+  // so a stale error from a previous operation doesn't linger
   const onSaved = (saved: AdminHackathon) => {
+    setError('');
     setHackathons((prev) => {
       const idx = prev.findIndex((h) => h._id === saved._id);
       return idx >= 0 ? prev.map((h, i) => (i === idx ? saved : h)) : [saved, ...prev];
@@ -410,6 +414,7 @@ function HackathonsPageInner() {
   };
 
   const onDeleted = (id: string) => {
+    setError('');
     setHackathons((prev) => prev.filter((h) => h._id !== id));
     setDeleteTarget(null);
   };

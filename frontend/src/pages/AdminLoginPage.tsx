@@ -1,22 +1,27 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { apiFetch, API_BASE_URL, getCsrfToken, invalidateCsrfToken } from '../lib/api';
+import { apiFetch, API_BASE_URL, getCsrfToken, invalidateCsrfToken, seedCsrfToken } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import { PasswordInput } from '../components/PasswordInput';
 
 type LoginReply = {
   success: true;
-  data: { user: { id: string; fullName: string; email: string; role: 'STUDENT' | 'ADMIN' } };
+  // The server always returns the new session's CSRF token on login
+  data: { user: { id: string; fullName: string; email: string; role: 'STUDENT' | 'ADMIN' }; csrfToken: string };
 };
 
-/** Silently destroy the current session so a student login is revoked. */
-async function destroySession() {
+/**
+ * Silently destroy the current session so a student login is revoked.
+ * Must receive the CSRF token returned by the login response, because the
+ * server minted a new token when the session was created — the old cached
+ * token is invalid for the new session.
+ */
+async function destroySession(freshCsrfToken: string) {
   try {
-    const csrfToken = await getCsrfToken();
     await fetch(`${API_BASE_URL}/api/v1/auth/logout`, {
       method: 'POST',
       credentials: 'include',
-      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': freshCsrfToken },
     });
   } catch {
     // best-effort
@@ -68,11 +73,17 @@ export function AdminLoginPage() {
         body: JSON.stringify({ email, password }),
       });
 
+      // BUG-02: The server minted a new CSRF token for the new session.
+      // Seed the cache immediately so subsequent mutations use the correct token.
+      const freshToken = response.data.csrfToken;
+      seedCsrfToken(freshToken);
+
       if (response.data.user.role !== 'ADMIN') {
         // Login succeeded but the account is not an admin.
         // Immediately destroy the session we just created so the student is not
         // silently left logged in after visiting the admin portal.
-        await destroySession();
+        // BUG-06: Use the fresh token — the old cached token is for the previous session.
+        await destroySession(freshToken);
         setError('Invalid admin credentials. Access to this portal is restricted to administrators.');
         return;
       }
@@ -110,7 +121,7 @@ export function AdminLoginPage() {
 
       <div className="relative z-10 w-full max-w-md">
 
-        {/* Back to site */}
+        {/* Back to site — BUG-12: goes to landing page, not /admin (which would redirect back here) */}
         <div className="mb-6 text-center">
           <Link to="/" className="inline-flex items-center gap-2 text-xs uppercase tracking-[0.2em] text-zinc-500 transition hover:text-zinc-300">
             ← Back to CEG DEV HUB

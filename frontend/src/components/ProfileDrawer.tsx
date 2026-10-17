@@ -1,22 +1,12 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { apiFetch, getCsrfToken } from '../lib/api';
+import { DOMAINS, YEAR_OPTIONS } from '../lib/constants';
 import { useAuth } from '../contexts/AuthContext';
 import { PasswordInput } from './PasswordInput';
 
-// Must mirror the backend STUDENT_DOMAINS constant
-const DOMAIN_OPTIONS = [
-  'AI/ML', 'Web Development', 'Mobile Development', 'Blockchain',
-  'Cybersecurity', 'IoT', 'Cloud', 'Data Science', 'AR/VR', 'Open Innovation',
-] as const;
-
-const YEAR_OPTIONS = [
-  { value: 1, label: '1st Year' },
-  { value: 2, label: '2nd Year' },
-  { value: 3, label: '3rd Year' },
-  { value: 4, label: '4th Year' },
-  { value: 5, label: '5th Year' },
-] as const;
+// Domain and year options are defined in lib/constants.ts — the single source
+// of truth shared with AdminPage and Hackathons. Do not duplicate here.
 
 type Tab = 'profile' | 'password';
 
@@ -291,7 +281,7 @@ export function ProfileDrawer({ open, onClose }: ProfileDrawerProps) {
                 <p className="text-sm text-muted">Interested domains</p>
                 <p className="mt-0.5 text-xs text-muted/60">Pick any that match your interests.</p>
                 <div className="mt-3 flex flex-wrap gap-2">
-                  {DOMAIN_OPTIONS.map((domain) => {
+                  {DOMAINS.map((domain) => {
                     const active = selectedDomains.includes(domain);
                     return (
                       <button

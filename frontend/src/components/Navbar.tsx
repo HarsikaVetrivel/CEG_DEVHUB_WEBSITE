@@ -93,7 +93,11 @@ export function Navbar({ variant }: NavbarProps) {
         <div className="flex items-center justify-between gap-4">
 
           {/* Logo */}
-          <Link to="/" className="flex shrink-0 items-center gap-3" aria-label="CEG DEV HUB home">
+          <Link
+            to={variant === 'admin' ? '/admin' : variant === 'authenticated' ? '/dashboard' : '/'}
+            className="flex shrink-0 items-center gap-3"
+            aria-label="CEG DEV HUB home"
+          >
             <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/15 text-lg font-bold text-highlight ring-1 ring-primary/40">
               &lt;/&gt;
             </span>
