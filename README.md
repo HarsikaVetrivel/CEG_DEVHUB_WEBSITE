@@ -19,8 +19,8 @@ The following product areas remain future work; they are not available as comple
 
 - Admin account provisioning and management UI.
 - Hackathon creation, editing, moderation, ingestion and audit workflows.
-- Student participation tracking, achievement workflows and rankings.
-- Teammate discovery and collaboration features.
+-Student participation tracking, achievement workflows and rankings.
+- Teammate discovery and collaboration features. 
 - Profile editing and password recovery.
 - Email verification and notification delivery through email or push.
 - Automated backend/frontend test suites and deployment/operations setup.

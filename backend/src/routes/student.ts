@@ -16,12 +16,45 @@ import {
   removeBookmark,
   updateReminderPreferences,
 } from '../services/student.js';
+import {
+  createParticipation,
+  updateParticipation,
+  getMyParticipations,
+  getParticipationById,
+  withdrawParticipation,
+  getMyAchievements,
+} from '../services/participation.js';
+import {
+  createTeamRequest,
+  updateTeamRequest,
+  deleteTeamRequest,
+  getMyTeamRequests,
+  browseTeamRequests,
+  applyToTeam,
+  getIncomingApplications,
+  respondToApplication,
+  withdrawApplication,
+  getMyApplications,
+} from '../services/teammate.js';
 import { createError } from '../utils/errors.js';
 import {
   objectIdParamsSchema,
   paginationQuerySchema,
   reminderPreferencesSchema,
 } from '../validators/student.js';
+import {
+  createParticipationSchema,
+  updateParticipationSchema,
+  rankingsQuerySchema,
+} from '../validators/participation.js';
+import {
+  createTeamRequestSchema,
+  updateTeamRequestSchema,
+  applyToTeamSchema,
+  respondToApplicationSchema,
+  teammateDiscoveryQuerySchema,
+} from '../validators/teammate.js';
+
 const router = Router();
 
 router.use(requireAuth, requireRole(['STUDENT']));
@@ -185,6 +218,146 @@ router.get('/reminder-preferences', async (req, res, next) => {
   } catch (error) {
     return next(error);
   }
+});
+
+// ── Participation Routes ─────────────────────────────────────────────────────
+
+router.post('/participations', requireCsrf, async (req, res, next) => {
+  const parsed = createParticipationSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ success: false, error: { message: 'Validation failed.', details: parsed.error.flatten() } });
+  try {
+    const participation = await createParticipation(req.user!.id, parsed.data.hackathonId, parsed.data.teamName);
+    return res.status(201).json({ success: true, data: { participation } });
+  } catch (error) { return next(error); }
+});
+
+router.get('/participations', async (req, res, next) => {
+  const parsed = paginationQuerySchema.safeParse(req.query);
+  if (!parsed.success) return res.status(400).json({ success: false, error: { message: 'Invalid pagination.' } });
+  try {
+    const result = await getMyParticipations(req.user!.id, parsed.data.page, parsed.data.limit);
+    return res.json({ success: true, data: result });
+  } catch (error) { return next(error); }
+});
+
+router.get('/participations/:id', async (req, res, next) => {
+  try {
+    const participation = await getParticipationById(req.user!.id, req.params.id);
+    return res.json({ success: true, data: { participation } });
+  } catch (error) { return next(error); }
+});
+
+router.patch('/participations/:id', requireCsrf, async (req, res, next) => {
+  const parsed = updateParticipationSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ success: false, error: { message: 'Validation failed.', details: parsed.error.flatten() } });
+  try {
+    const participation = await updateParticipation(req.user!.id, req.params.id as string, parsed.data);
+    return res.json({ success: true, data: { participation } });
+  } catch (error) { return next(error); }
+});
+
+router.delete('/participations/:id', requireCsrf, async (req, res, next) => {
+  try {
+    const result = await withdrawParticipation(req.user!.id, req.params.id as string);
+    return res.json({ success: true, data: result });
+  } catch (error) { return next(error); }
+});
+
+router.get('/achievements', async (req, res, next) => {
+  try {
+    const achievements = await getMyAchievements(req.user!.id);
+    return res.json({ success: true, data: { achievements } });
+  } catch (error) { return next(error); }
+});
+
+// ── Teammate Routes ───────────────────────────────────────────────────────────
+
+router.post('/team-requests', requireCsrf, async (req, res, next) => {
+  const parsed = createTeamRequestSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ success: false, error: { message: 'Validation failed.', details: parsed.error.flatten() } });
+  try {
+    const request = await createTeamRequest(req.user!.id, parsed.data);
+    return res.status(201).json({ success: true, data: { request } });
+  } catch (error) { return next(error); }
+});
+
+router.get('/team-requests', async (req, res, next) => {
+  const parsed = paginationQuerySchema.safeParse(req.query);
+  if (!parsed.success) return res.status(400).json({ success: false, error: { message: 'Invalid pagination.' } });
+  try {
+    const result = await getMyTeamRequests(req.user!.id, parsed.data.page, parsed.data.limit);
+    return res.json({ success: true, data: result });
+  } catch (error) { return next(error); }
+});
+
+router.patch('/team-requests/:id', requireCsrf, async (req, res, next) => {
+  const parsed = updateTeamRequestSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ success: false, error: { message: 'Validation failed.', details: parsed.error.flatten() } });
+  try {
+    const request = await updateTeamRequest(req.user!.id, req.params.id as string, parsed.data);
+    return res.json({ success: true, data: { request } });
+  } catch (error) { return next(error); }
+});
+
+router.delete('/team-requests/:id', requireCsrf, async (req, res, next) => {
+  try {
+    const result = await deleteTeamRequest(req.user!.id, req.params.id as string);
+    return res.json({ success: true, data: result });
+  } catch (error) { return next(error); }
+});
+
+router.post('/team-requests/:id/apply', requireCsrf, async (req, res, next) => {
+  const parsed = applyToTeamSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ success: false, error: { message: 'Validation failed.', details: parsed.error.flatten() } });
+  try {
+    const application = await applyToTeam(req.user!.id, req.params.id as string, parsed.data.message);
+    return res.status(201).json({ success: true, data: { application } });
+  } catch (error) { return next(error); }
+});
+
+router.get('/team-requests/:id/applications', async (req, res, next) => {
+  const parsed = paginationQuerySchema.safeParse(req.query);
+  if (!parsed.success) return res.status(400).json({ success: false, error: { message: 'Invalid pagination.' } });
+  try {
+    const result = await getIncomingApplications(req.user!.id, req.params.id as string, parsed.data.page, parsed.data.limit);
+    return res.json({ success: true, data: result });
+  } catch (error) { return next(error); }
+});
+
+router.patch('/team-applications/:id', requireCsrf, async (req, res, next) => {
+  const parsed = respondToApplicationSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ success: false, error: { message: 'Validation failed.', details: parsed.error.flatten() } });
+  const status = parsed.data.status as 'ACCEPTED' | 'REJECTED' | 'WITHDRAWN';
+  try {
+    if (status === 'WITHDRAWN') {
+      const result = await withdrawApplication(req.user!.id, req.params.id as string);
+      return res.json({ success: true, data: { application: result } });
+    }
+    const result = await respondToApplication(req.user!.id, req.params.id as string, status);
+    return res.json({ success: true, data: { application: result } });
+  } catch (error) { return next(error); }
+});
+
+router.get('/team-applications', async (req, res, next) => {
+  const parsed = paginationQuerySchema.safeParse(req.query);
+  if (!parsed.success) return res.status(400).json({ success: false, error: { message: 'Invalid pagination.' } });
+  try {
+    const result = await getMyApplications(req.user!.id, parsed.data.page, parsed.data.limit);
+    return res.json({ success: true, data: result });
+  } catch (error) { return next(error); }
+});
+
+router.get('/teammate-discovery', async (req, res, next) => {
+  const parsed = teammateDiscoveryQuerySchema.safeParse(req.query);
+  if (!parsed.success) return res.status(400).json({ success: false, error: { message: 'Invalid filters.' } });
+  try {
+    const result = await browseTeamRequests(
+      { hackathonId: parsed.data.hackathonId, skill: parsed.data.skill },
+      parsed.data.page,
+      parsed.data.limit,
+    );
+    return res.json({ success: true, data: result });
+  } catch (error) { return next(error); }
 });
 
 export default router;

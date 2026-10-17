@@ -121,9 +121,11 @@ export function Navbar({ variant }: NavbarProps) {
           {variant === 'authenticated' && (
             <nav className="hidden items-center gap-1 text-sm text-muted md:flex" aria-label="Student navigation">
               <Link className="rounded-full px-3 py-2 transition hover:bg-card hover:text-text" to="/dashboard">Dashboard</Link>
-              <Link className="rounded-full px-3 py-2 transition hover:bg-card hover:text-text" to="/bookmarks">Bookmarks</Link>
-              <Link className="rounded-full px-3 py-2 transition hover:bg-card hover:text-text" to="/notifications">Notifications</Link>
               <Link className="rounded-full px-3 py-2 transition hover:bg-card hover:text-text" to="/hackathons">Directory</Link>
+              <Link className="rounded-full px-3 py-2 transition hover:bg-card hover:text-text" to="/participations">Participations</Link>
+              <Link className="rounded-full px-3 py-2 transition hover:bg-card hover:text-text" to="/teammates">Teammates</Link>
+              <Link className="rounded-full px-3 py-2 transition hover:bg-card hover:text-text" to="/rankings">Rankings</Link>
+              <Link className="rounded-full px-3 py-2 transition hover:bg-card hover:text-text" to="/bookmarks">Bookmarks</Link>
             </nav>
           )}
 
@@ -211,9 +213,12 @@ export function Navbar({ variant }: NavbarProps) {
             ) : variant === 'authenticated' ? (
               <>
                 <Link className="rounded-xl px-4 py-2.5 transition hover:bg-card hover:text-text" to="/dashboard" onClick={closeMenu}>Dashboard</Link>
+                <Link className="rounded-xl px-4 py-2.5 transition hover:bg-card hover:text-text" to="/hackathons" onClick={closeMenu}>Directory</Link>
+                <Link className="rounded-xl px-4 py-2.5 transition hover:bg-card hover:text-text" to="/participations" onClick={closeMenu}>Participations</Link>
+                <Link className="rounded-xl px-4 py-2.5 transition hover:bg-card hover:text-text" to="/teammates" onClick={closeMenu}>Teammates</Link>
+                <Link className="rounded-xl px-4 py-2.5 transition hover:bg-card hover:text-text" to="/rankings" onClick={closeMenu}>Rankings</Link>
                 <Link className="rounded-xl px-4 py-2.5 transition hover:bg-card hover:text-text" to="/bookmarks" onClick={closeMenu}>Bookmarks</Link>
                 <Link className="rounded-xl px-4 py-2.5 transition hover:bg-card hover:text-text" to="/notifications" onClick={closeMenu}>Notifications</Link>
-                <Link className="rounded-xl px-4 py-2.5 transition hover:bg-card hover:text-text" to="/hackathons" onClick={closeMenu}>Directory</Link>
                 {/* Mobile: open profile drawer */}
                 <div className="mt-2 flex flex-col gap-2 border-t border-border pt-3">
                   <button

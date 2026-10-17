@@ -214,6 +214,100 @@ function BookmarkButton({ hackathonId, name }: { hackathonId: string; name: stri
   );
 }
 
+/**
+ * Self-reporting participation button.
+ * Students click this on the hackathon detail page to record that they
+ * are participating. State is fetched on mount just like BookmarkButton.
+ */
+function ParticipationButton({ hackathonId, hackathonName }: { hackathonId: string; hackathonName: string }) {
+  const { user } = useAuth();
+  const [participating, setParticipating] = useState(false);
+  const [participationId, setParticipationId] = useState<string | null>(null);
+  const [knownSignedIn, setKnownSignedIn] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [showSuccess, setShowSuccess] = useState(false);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (user?.role === 'ADMIN') return;
+    const controller = new AbortController();
+    // Check existing participations for this hackathon
+    fetch(`${API_BASE_URL}/api/v1/student/participations?limit=50`, {
+      credentials: 'include',
+      signal: controller.signal,
+    })
+      .then(async (res) => {
+        if (!res.ok) return;
+        const body = (await res.json()) as {
+          data: { items: Array<{ _id: string; hackathonId: { _id: string } | string; status: string }> };
+        };
+        setKnownSignedIn(true);
+        const existing = body.data.items.find((p) => {
+          const hid = typeof p.hackathonId === 'object' ? p.hackathonId._id : p.hackathonId;
+          return hid === hackathonId && p.status !== 'WITHDREW';
+        });
+        if (existing) { setParticipating(true); setParticipationId(existing._id); }
+      })
+      .catch(() => { if (!controller.signal.aborted) setKnownSignedIn(false); });
+    return () => controller.abort();
+  }, [hackathonId, user]);
+
+  const handleClick = async () => {
+    if (!knownSignedIn) { navigate('/login'); return; }
+    setBusy(true); setError('');
+    try {
+      const csrf = await getCsrfToken();
+      if (participating && participationId) {
+        // Withdraw (soft-delete)
+        await apiFetch(`/api/v1/student/participations/${participationId}`, {
+          method: 'DELETE', headers: { 'X-CSRF-Token': csrf },
+        });
+        setParticipating(false); setParticipationId(null);
+      } else {
+        // Register participation
+        const res = await apiFetch<{ data: { participation: { _id: string } } }>(
+          '/api/v1/student/participations',
+          { method: 'POST', headers: { 'X-CSRF-Token': csrf }, body: JSON.stringify({ hackathonId }) },
+        );
+        setParticipating(true); setParticipationId(res.data.participation._id);
+        setShowSuccess(true); setTimeout(() => setShowSuccess(false), 3000);
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Failed.';
+      if (msg === 'Authentication required.') navigate('/login');
+      else setError(msg);
+    } finally { setBusy(false); }
+  };
+
+  if (user?.role === 'ADMIN') return null;
+
+  return (
+    <span className="relative">
+      <button
+        onClick={handleClick}
+        disabled={busy}
+        type="button"
+        title={participating ? `Withdraw from ${hackathonName}` : `Mark yourself as participating in ${hackathonName}`}
+        className={`flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold transition disabled:opacity-50 ${
+          participating
+            ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300 hover:border-rose-400/50 hover:bg-rose-500/10 hover:text-rose-300'
+            : 'border-border bg-background/70 text-muted hover:border-primary/50 hover:text-highlight'
+        }`}
+      >
+        <span>{participating ? '✓' : '+'}</span>
+        <span>{participating ? 'Participating' : "I'm participating"}</span>
+      </button>
+      {showSuccess && (
+        <span className="absolute left-0 top-full z-10 mt-1 w-64 rounded-lg border border-emerald-500/30 bg-background p-2 text-xs text-emerald-300">
+          ✓ Recorded! Track progress at <Link to="/participations" className="underline">My Participations</Link>.
+        </span>
+      )}
+      {error && <span role="alert" className="absolute left-0 top-full z-10 mt-1 w-56 rounded-lg border border-rose-500/30 bg-background p-2 text-xs text-rose-200">{error}</span>}
+    </span>
+  );
+}
+
 export function HackathonDiscovery() {
   const [searchParams] = useSearchParams();
   const [search, setSearch] = useState('');
@@ -524,7 +618,8 @@ export function HackathonDetails() {
         )}
         {!loading && !error && hackathon && (
           <article className="mt-6 rounded-[32px] border border-border bg-panel p-6 shadow-glow sm:p-10">
-            <div className="mb-4 flex justify-end">
+            <div className="mb-4 flex flex-wrap items-center justify-end gap-3">
+              <ParticipationButton hackathonId={hackathon._id} hackathonName={hackathon.name} />
               <BookmarkButton hackathonId={hackathon._id} name={hackathon.name} />
             </div>
             <div className="flex flex-wrap items-center gap-2">

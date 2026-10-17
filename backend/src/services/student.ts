@@ -6,6 +6,8 @@ import Notification from '../models/Notification.js';
 import ReminderDelivery from '../models/ReminderDelivery.js';
 import User from '../models/User.js';
 import { getReminderKey, syncAllUserReminders, syncBookmarkReminders } from './reminders.js';
+import { getParticipationSummary } from './participation.js';
+
 
 /**
  * Creates a bookmark linking a user to a published hackathon.
@@ -122,7 +124,8 @@ export const getDashboardData = async (userId: string) => {
   if (!user) return null;
 
   const now = new Date();
-  const [bookmarkCount, unreadCount, upcomingBookmarks, notifications] = await Promise.all([
+  const [bookmarkCount, unreadCount, upcomingBookmarks, notifications, participationStats] =
+    await Promise.all([
     Bookmark.countDocuments({ userId }),
     Notification.countDocuments({ userId, readAt: { $exists: false } }),
     Bookmark.aggregate([
@@ -163,9 +166,10 @@ export const getDashboardData = async (userId: string) => {
     Notification.find({ userId })
       .sort({ createdAt: -1 })
       .limit(5)
-      .select('type title message hackathonId readAt createdAt')
+      .select('type title message body hackathonId readAt createdAt')
       .populate({ path: 'hackathonId', select: 'name slug' })
       .lean(),
+    getParticipationSummary(userId),
   ]);
 
   return {
@@ -181,11 +185,13 @@ export const getDashboardData = async (userId: string) => {
       bookmarks: bookmarkCount,
       unreadNotifications: unreadCount,
     },
+    participationStats,
     reminderPreferences: user.reminderPreferences,
     upcomingBookmarkedDeadlines: upcomingBookmarks,
     notifications,
   };
 };
+
 
 /** Returns a paginated list of all notifications for a user, newest first. */
 export const getNotifications = async (userId: string, page: number, limit: number) => {

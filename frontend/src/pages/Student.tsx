@@ -54,6 +54,16 @@ type Dashboard = {
     interestedDomains: string[];
   };
   summary: { bookmarks: number; unreadNotifications: number };
+  participationStats: {
+    total: number;
+    completed: number;
+    wins: number;
+    recentAchievements: Array<{
+      achievementKey: string;
+      earnedAt: string;
+      meta: { label: string; description: string; icon: string };
+    }>;
+  };
   reminderPreferences: { enabled: boolean; daysBefore: number[]; timeZone: string };
   upcomingBookmarkedDeadlines: Array<{
     _id: string;
@@ -294,7 +304,7 @@ export function StudentDashboard() {
       )}
 
       {/* ── Summary cards ── */}
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div className="rounded-[24px] border border-border bg-card p-5">
           <p className="text-sm text-muted">Saved hackathons</p>
           <p className="mt-2 text-3xl font-black text-white">{dashboard.summary.bookmarks}</p>
@@ -303,7 +313,39 @@ export function StudentDashboard() {
           <p className="text-sm text-muted">Unread notifications</p>
           <p className="mt-2 text-3xl font-black text-white">{dashboard.summary.unreadNotifications}</p>
         </div>
+        <div className="rounded-[24px] border border-primary/20 bg-primary/5 p-5">
+          <p className="text-sm text-muted">Hackathons joined</p>
+          <p className="mt-2 text-3xl font-black text-white">{dashboard.participationStats?.total ?? 0}</p>
+          <p className="mt-1 text-xs text-muted">{dashboard.participationStats?.completed ?? 0} completed</p>
+        </div>
+        <div className="rounded-[24px] border border-amber-500/20 bg-amber-500/5 p-5">
+          <p className="text-sm text-muted">🏆 Wins</p>
+          <p className="mt-2 text-3xl font-black text-white">{dashboard.participationStats?.wins ?? 0}</p>
+          <Link to="/rankings" className="mt-1 block text-xs text-highlight hover:text-text">View rankings →</Link>
+        </div>
       </div>
+
+      {/* ── Recent achievements ── */}
+      {(dashboard.participationStats?.recentAchievements?.length ?? 0) > 0 && (
+        <section className="mt-6 rounded-[28px] border border-border bg-card p-6">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-bold text-white">Recent achievements</h2>
+            <Link to="/achievements" className="text-sm text-highlight hover:text-text">All achievements</Link>
+          </div>
+          <div className="mt-4 flex flex-wrap gap-3">
+            {dashboard.participationStats.recentAchievements.map((a) => (
+              <div
+                key={a.achievementKey}
+                title={a.meta.description}
+                className="flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-4 py-2 text-sm font-medium text-highlight"
+              >
+                <span>{a.meta.icon}</span>
+                <span>{a.meta.label}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       {error && <p className="mt-4 text-sm text-rose-200" role="alert">{error}</p>}
 
