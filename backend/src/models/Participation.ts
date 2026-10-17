@@ -1,4 +1,4 @@
-﻿import mongoose from 'mongoose';
+import mongoose from 'mongoose';
 
 export const PARTICIPATION_STATUSES = [
   'REGISTERED',
@@ -13,6 +13,12 @@ export const PARTICIPATION_OUTCOMES = [
   'FINALIST',
   'PARTICIPANT',
 ] as const;
+
+/** Outcomes that require proof and admin verification */
+export const VERIFIABLE_OUTCOMES = ['WINNER', 'RUNNER_UP', 'FINALIST'] as const;
+
+export const VERIFICATION_STATUSES = ['UNVERIFIED', 'VERIFIED', 'REJECTED'] as const;
+export type VerificationStatus = (typeof VERIFICATION_STATUSES)[number];
 
 export type ParticipationStatus = (typeof PARTICIPATION_STATUSES)[number];
 export type ParticipationOutcome = (typeof PARTICIPATION_OUTCOMES)[number];
@@ -56,6 +62,22 @@ const participationSchema = new mongoose.Schema(
     },
     completedAt: {
       type: Date,
+      default: null,
+    },
+    /** URL to evidence of win/placement (Devpost, LinkedIn cert, etc.) */
+    proofUrl: {
+      type: String,
+      maxlength: 2000,
+      default: null,
+    },
+    /**
+     * Set automatically when outcome is WINNER / RUNNER_UP / FINALIST.
+     * null = no podium claim made.
+     * Admin reviews UNVERIFIED → VERIFIED or REJECTED.
+     */
+    verificationStatus: {
+      type: String,
+      enum: [...VERIFICATION_STATUSES, null],
       default: null,
     },
   },

@@ -19,6 +19,11 @@ export const createTeamRequest = async (
     maxTeamSize: number;
   },
 ) => {
+  // Only verified students may create team requests
+  const creator = await User.findById(creatorId).select('emailVerified');
+  if (!creator?.emailVerified)
+    throw createError(403, 'You must verify your email before creating a team request.');
+
   const hackathon = await Hackathon.findOne({
     _id: payload.hackathonId,
     listingStatus: 'PUBLISHED',
@@ -140,6 +145,11 @@ export const browseTeamRequests = async (
 export const applyToTeam = async (applicantId: string, requestId: string, message: string) => {
   if (!mongoose.isValidObjectId(requestId)) throw createError(400, 'Invalid request ID.');
 
+  // Only verified students may apply to teams
+  const applicantUser = await User.findById(applicantId).select('emailVerified fullName');
+  if (!applicantUser?.emailVerified)
+    throw createError(403, 'You must verify your email before applying to a team.');
+
   const teamRequest = await TeamRequest.findById(requestId).populate('hackathonId', 'name');
   if (!teamRequest || teamRequest.status !== 'OPEN')
     throw createError(404, 'Open team request not found.');
@@ -158,14 +168,13 @@ export const applyToTeam = async (applicantId: string, requestId: string, messag
   });
 
   // Notify the creator
-  const applicant = await User.findById(applicantId).select('fullName');
   const hackathonName = (teamRequest.hackathonId as any)?.name ?? 'a hackathon';
   await Notification.create({
     userId: teamRequest.creatorId,
     type: 'team_application',
-    title: `New team application from ${applicant?.fullName ?? 'someone'}`,
+    title: `New team application from ${applicantUser.fullName}`,
     body: `Someone wants to join your team for ${hackathonName}. Review their application.`,
-    read: false,
+    readAt: null,
     relatedId: application._id,
   });
 
@@ -231,7 +240,7 @@ export const respondToApplication = async (
     body: newStatus === 'ACCEPTED'
       ? `You have been accepted to a team for ${hackathon?.name ?? 'a hackathon'}. Good luck!`
       : `Your application to ${hackathon?.name ?? 'a hackathon'} was not accepted this time.`,
-    read: false,
+    readAt: null,
     relatedId: application._id,
   });
 

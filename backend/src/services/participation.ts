@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 import Participation, {
   type ParticipationStatus,
   type ParticipationOutcome,
+  VERIFIABLE_OUTCOMES,
 } from '../models/Participation.js';
 import UserAchievement, {
   ACHIEVEMENT_META,
@@ -49,7 +50,7 @@ async function checkAndAwardAchievements(
         type: 'achievement',
         title: `Achievement unlocked: ${ACHIEVEMENT_META[key].icon} ${ACHIEVEMENT_META[key].label}`,
         body: ACHIEVEMENT_META[key].description,
-        read: false,
+        readAt: null,
       })),
     );
   }
@@ -68,16 +69,40 @@ export const createParticipation = async (userId: string, hackathonId: string, t
 
 export const updateParticipation = async (
   userId: string, participationId: string,
-  patch: { status?: ParticipationStatus; outcome?: ParticipationOutcome | null; teamName?: string | null; note?: string | null; completedAt?: string | null },
+  patch: {
+    status?: ParticipationStatus;
+    outcome?: ParticipationOutcome | null;
+    teamName?: string | null;
+    note?: string | null;
+    completedAt?: string | null;
+    proofUrl?: string | null;
+  },
 ) => {
   if (!mongoose.isValidObjectId(participationId)) throw createError(400, 'Invalid participation ID.');
   const update: Record<string, unknown> = {};
-  if (patch.status !== undefined)   update['status']   = patch.status;
-  if (patch.outcome !== undefined)  update['outcome']  = patch.outcome;
-  if (patch.teamName !== undefined) update['teamName'] = patch.teamName;
-  if (patch.note !== undefined)     update['note']     = patch.note;
-  if (patch.status === 'COMPLETED') update['completedAt'] = patch.completedAt ? new Date(patch.completedAt) : new Date();
-  const participation = await Participation.findOneAndUpdate({ _id: participationId, userId }, { $set: update }, { new: true });
+  if (patch.status !== undefined)    update['status']    = patch.status;
+  if (patch.outcome !== undefined)   update['outcome']   = patch.outcome;
+  if (patch.teamName !== undefined)  update['teamName']  = patch.teamName;
+  if (patch.note !== undefined)      update['note']      = patch.note;
+  if (patch.proofUrl !== undefined)  update['proofUrl']  = patch.proofUrl;
+  if (patch.status === 'COMPLETED')  update['completedAt'] = patch.completedAt ? new Date(patch.completedAt) : new Date();
+
+  // Auto-set verificationStatus when outcome changes
+  if (patch.outcome !== undefined) {
+    if (patch.outcome && (VERIFIABLE_OUTCOMES as readonly string[]).includes(patch.outcome)) {
+      // Podium claim → needs admin review
+      update['verificationStatus'] = 'UNVERIFIED';
+    } else {
+      // Clearing outcome or setting PARTICIPANT → no verification needed
+      update['verificationStatus'] = null;
+    }
+  }
+
+  const participation = await Participation.findOneAndUpdate(
+    { _id: participationId, userId },
+    { $set: update },
+    { new: true },
+  );
   if (!participation) throw createError(404, 'Participation not found.');
   await checkAndAwardAchievements(userId, participation.hackathonId.toString());
   return participation.toObject();

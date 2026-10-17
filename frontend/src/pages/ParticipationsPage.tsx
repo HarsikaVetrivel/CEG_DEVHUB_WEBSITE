@@ -9,6 +9,8 @@ type Participation = {
   outcome: 'WINNER' | 'RUNNER_UP' | 'FINALIST' | 'PARTICIPANT' | null;
   teamName: string | null;
   note: string | null;
+  proofUrl: string | null;
+  verificationStatus: 'UNVERIFIED' | 'VERIFIED' | 'REJECTED' | null;
   registeredAt: string;
   completedAt: string | null;
   hackathon?: {
@@ -30,27 +32,42 @@ const OUTCOME_COLORS: Record<string, string> = {
   FINALIST:    'bg-primary/15 text-highlight border-primary/30',
   PARTICIPANT: 'bg-card text-muted border-border',
 };
-const OUTCOME_ICONS: Record<string, string> = { WINNER: '🥇', RUNNER_UP: '🥈', FINALIST: '🥉', PARTICIPANT: '🎯' };
+const OUTCOME_ICONS: Record<string, string> = {
+  WINNER: '🥇', RUNNER_UP: '🥈', FINALIST: '🥉', PARTICIPANT: '🎯',
+};
+const VERIFY_BADGE: Record<string, string> = {
+  UNVERIFIED: '🔍 Pending review',
+  VERIFIED:   '✅ Verified',
+  REJECTED:   '❌ Not verified',
+};
+const VERIFY_COLORS: Record<string, string> = {
+  UNVERIFIED: 'border-amber-500/30 bg-amber-500/10 text-amber-300',
+  VERIFIED:   'border-emerald-500/30 bg-emerald-500/10 text-emerald-300',
+  REJECTED:   'border-rose-500/30 bg-rose-500/10 text-rose-300',
+};
+
+const PODIUM = ['WINNER', 'RUNNER_UP', 'FINALIST'];
 const fmt = (d: string) => new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(d));
 
 export function ParticipationsPage() {
-  const [items, setItems] = useState<Participation[]>([]);
-  const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [statusBusy, setStatusBusy] = useState<string | null>(null);
-  const [editId, setEditId]         = useState<string | null>(null);
-  const [editNote, setEditNote]     = useState('');
+  const [items, setItems]             = useState<Participation[]>([]);
+  const [page, setPage]               = useState(1);
+  const [totalPages, setTotalPages]   = useState(1);
+  const [loading, setLoading]         = useState(true);
+  const [error, setError]             = useState('');
+  const [statusBusy, setStatusBusy]   = useState<string | null>(null);
+  const [editId, setEditId]           = useState<string | null>(null);
+  const [editNote, setEditNote]       = useState('');
   const [editOutcome, setEditOutcome] = useState('');
-  const [editStatus, setEditStatus] = useState('');
+  const [editStatus, setEditStatus]   = useState('');
+  const [editProofUrl, setEditProofUrl] = useState('');
 
   const load = async (p = 1) => {
     setLoading(true);
     setError('');
     try {
       const res = await apiFetch<{ data: { items: Participation[]; pagination: { totalPages: number; page: number } } }>(
-        `/api/v1/student/participations?page=${p}&limit=12`
+        `/api/v1/student/participations?page=${p}&limit=12`,
       );
       setItems(res.data.items);
       setTotalPages(res.data.pagination.totalPages);
@@ -74,17 +91,22 @@ export function ParticipationsPage() {
 
   const saveEdit = async (id: string) => {
     setStatusBusy(id);
+    setError('');
     try {
+      const isPodium = PODIUM.includes(editOutcome);
+      if (isPodium && !editProofUrl.trim()) {
+        setError('A proof URL is required for Winner, Runner-up, or Finalist outcomes.');
+        setStatusBusy(null);
+        return;
+      }
+      const statusToSend = editOutcome ? 'COMPLETED' : (editStatus || undefined);
       const csrf = await getCsrfToken();
-      // Outcome is only valid when status is COMPLETED — auto-promote if outcome selected
-      const statusToSend = editOutcome
-        ? 'COMPLETED'
-        : (editStatus || undefined);
       await apiFetch(`/api/v1/student/participations/${id}`, {
         method: 'PATCH', headers: { 'X-CSRF-Token': csrf },
         body: JSON.stringify({
           note: editNote || null,
           outcome: editOutcome || null,
+          proofUrl: editProofUrl.trim() || null,
           ...(statusToSend ? { status: statusToSend } : {}),
         }),
       });
@@ -92,6 +114,15 @@ export function ParticipationsPage() {
       load(page);
     } catch (e) { setError(e instanceof Error ? e.message : 'Failed to update.'); }
     finally { setStatusBusy(null); }
+  };
+
+  const openEdit = (p: Participation) => {
+    setEditId(p._id);
+    setEditNote(p.note ?? '');
+    setEditOutcome(p.outcome ?? '');
+    setEditStatus('');
+    setEditProofUrl(p.proofUrl ?? '');
+    setError('');
   };
 
   return (
@@ -104,13 +135,13 @@ export function ParticipationsPage() {
           <Link to="/hackathons" className="rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-white hover:opacity-90">Browse hackathons</Link>
         </div>
 
-        {/* Self-reporting explainer */}
+        {/* How it works callout */}
         <div className="mb-6 rounded-[20px] border border-primary/20 bg-primary/5 p-4 text-sm text-muted">
-          <p className="font-semibold text-highlight mb-1">ℹ️ How participation tracking works</p>
+          <p className="font-semibold text-highlight mb-1">How participation tracking works</p>
           <ul className="list-disc list-inside space-y-1">
-            <li>Go to a hackathon's detail page and click <strong className="text-text">"I'm participating"</strong> to register yourself.</li>
-            <li>After the event, click <strong className="text-text">Edit</strong> on this page to update your status to <em>Completed</em> and record your result (Winner, Runner-up, etc.).</li>
-            <li>Achievements and rankings are calculated automatically based on your self-reported outcomes.</li>
+            <li>Click <strong className="text-text">"I'm participating"</strong> on a hackathon page to register yourself.</li>
+            <li>After the event, click <strong className="text-text">Edit</strong> to set your outcome. <strong className="text-text">Winner / Runner-up / Finalist</strong> require a proof URL (Devpost, LinkedIn cert, etc.).</li>
+            <li>Podium claims show <span className="text-amber-300">🔍 Pending review</span> until an admin verifies them — then <span className="text-emerald-300">✅ Verified</span> on the leaderboard.</li>
           </ul>
         </div>
 
@@ -127,6 +158,7 @@ export function ParticipationsPage() {
           <div className="space-y-3">
             {items.map((p) => (
               <div key={p._id} className="rounded-[24px] border border-border bg-card p-5 transition hover:border-primary/30">
+                {/* Header row */}
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <Link to={`/hackathons/${p.hackathon?.slug}`} className="text-lg font-bold text-white hover:text-highlight">
@@ -142,12 +174,33 @@ export function ParticipationsPage() {
                         {OUTCOME_ICONS[p.outcome]} {p.outcome.replace('_', ' ')}
                       </span>
                     )}
+                    {p.verificationStatus && (
+                      <span className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${VERIFY_COLORS[p.verificationStatus]}`}>
+                        {VERIFY_BADGE[p.verificationStatus]}
+                      </span>
+                    )}
                   </div>
                 </div>
-                <p className="mt-2 text-xs text-muted">Registered {fmt(p.registeredAt)}{p.completedAt && ` · Completed ${fmt(p.completedAt)}`}</p>
-                {p.note && <p className="mt-2 text-sm text-muted italic">"{p.note}"</p>}
+
+                <p className="mt-2 text-xs text-muted">
+                  Registered {fmt(p.registeredAt)}{p.completedAt && ` · Completed ${fmt(p.completedAt)}`}
+                </p>
+                {p.note && <p className="mt-1 text-sm text-muted italic">"{p.note}"</p>}
+                {p.proofUrl && (
+                  <a href={p.proofUrl} target="_blank" rel="noopener noreferrer"
+                    className="mt-1 block text-xs text-highlight hover:underline truncate max-w-xs">
+                    🔗 {p.proofUrl}
+                  </a>
+                )}
+                {p.verificationStatus === 'REJECTED' && (
+                  <p className="mt-2 rounded-xl border border-rose-500/20 bg-rose-500/5 px-3 py-2 text-xs text-rose-300">
+                    Your claim was not verified. Update your proof URL and save again to re-submit for review.
+                  </p>
+                )}
+
+                {/* Edit inline form */}
                 {editId === p._id ? (
-                  <div className="mt-3 space-y-2">
+                  <div className="mt-4 space-y-3 border-t border-border pt-4">
                     <div className="grid grid-cols-2 gap-2">
                       <div>
                         <p className="mb-1 text-xs text-muted">Status</p>
@@ -155,34 +208,65 @@ export function ParticipationsPage() {
                           className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm text-text">
                           <option value="">Keep current</option>
                           <option value="PARTICIPATING">Participating</option>
-                          <option value="COMPLETED">Completed ✓</option>
+                          <option value="COMPLETED">Completed</option>
                         </select>
                       </div>
                       <div>
-                        <p className="mb-1 text-xs text-muted">Outcome (sets Completed)</p>
+                        <p className="mb-1 text-xs text-muted">Outcome</p>
                         <select value={editOutcome} onChange={(e) => setEditOutcome(e.target.value)}
                           className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm text-text">
-                          <option value="">No outcome yet</option>
-                          {['WINNER','RUNNER_UP','FINALIST','PARTICIPANT'].map((o) => <option key={o} value={o}>{o}</option>)}
+                          <option value="">No outcome</option>
+                          {['WINNER', 'RUNNER_UP', 'FINALIST', 'PARTICIPANT'].map((o) => (
+                            <option key={o} value={o}>{o}</option>
+                          ))}
                         </select>
                       </div>
                     </div>
+
+                    {PODIUM.includes(editOutcome) && (
+                      <div>
+                        <p className="mb-1 text-xs font-semibold text-amber-400">
+                          Proof URL required for podium claims
+                        </p>
+                        <input
+                          type="url"
+                          value={editProofUrl}
+                          onChange={(e) => setEditProofUrl(e.target.value)}
+                          placeholder="https://devpost.com/... or LinkedIn certificate URL"
+                          className="w-full rounded-xl border border-amber-500/40 bg-background px-3 py-2 text-sm text-text outline-none focus:border-amber-400"
+                        />
+                        <p className="mt-1 text-xs text-muted">
+                          Reviewed by an admin. Verified claims show ✅ on the leaderboard.
+                        </p>
+                      </div>
+                    )}
+
                     <textarea value={editNote} onChange={(e) => setEditNote(e.target.value)}
-                      placeholder="What did you build? (optional)" maxLength={500}
+                      placeholder="What did you build? (optional note)" maxLength={500}
                       className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm text-text" rows={2} />
                     <div className="flex gap-2">
-                      <button disabled={!!statusBusy} onClick={() => saveEdit(p._id)} className="rounded-full bg-primary px-4 py-1.5 text-xs font-semibold text-white disabled:opacity-50">Save</button>
-                      <button onClick={() => setEditId(null)} className="rounded-full border border-border px-4 py-1.5 text-xs text-muted hover:text-text">Cancel</button>
+                      <button disabled={!!statusBusy} onClick={() => saveEdit(p._id)}
+                        className="rounded-full bg-primary px-4 py-1.5 text-xs font-semibold text-white disabled:opacity-50">
+                        {statusBusy === p._id ? 'Saving…' : 'Save'}
+                      </button>
+                      <button onClick={() => setEditId(null)}
+                        className="rounded-full border border-border px-4 py-1.5 text-xs text-muted hover:text-text">
+                        Cancel
+                      </button>
                     </div>
                   </div>
                 ) : (
                   <div className="mt-3 flex gap-2">
                     {p.status !== 'WITHDREW' && (
                       <>
-                        <button onClick={() => { setEditId(p._id); setEditNote(p.note ?? ''); setEditOutcome(p.outcome ?? ''); setEditStatus(''); }}
-                          className="rounded-full border border-border px-3 py-1.5 text-xs text-muted hover:border-primary/40 hover:text-highlight">Edit</button>
+                        <button onClick={() => openEdit(p)}
+                          className="rounded-full border border-border px-3 py-1.5 text-xs text-muted hover:border-primary/40 hover:text-highlight">
+                          Edit
+                        </button>
                         <button disabled={!!statusBusy} onClick={() => withdraw(p._id)}
-                          className="rounded-full border border-border px-3 py-1.5 text-xs text-muted hover:border-rose-400/50 hover:text-rose-300 disabled:opacity-40">Withdraw</button>
+                          className="rounded-full border border-border px-3 py-1.5 text-xs text-muted hover:border-rose-400/50 hover:text-rose-300 disabled:opacity-40">
+                          Withdraw
+                        </button>
                       </>
                     )}
                   </div>
@@ -191,11 +275,18 @@ export function ParticipationsPage() {
             ))}
           </div>
         )}
+
         {totalPages > 1 && (
           <div className="mt-6 flex items-center justify-center gap-3">
-            <button disabled={page <= 1} onClick={() => load(page - 1)} className="rounded-full border border-border px-4 py-2 text-sm text-muted disabled:opacity-40 hover:text-text">← Prev</button>
+            <button disabled={page <= 1} onClick={() => load(page - 1)}
+              className="rounded-full border border-border px-4 py-2 text-sm text-muted disabled:opacity-40 hover:text-text">
+              ← Prev
+            </button>
             <span className="text-sm text-muted">Page {page} of {totalPages}</span>
-            <button disabled={page >= totalPages} onClick={() => load(page + 1)} className="rounded-full border border-border px-4 py-2 text-sm text-muted disabled:opacity-40 hover:text-text">Next →</button>
+            <button disabled={page >= totalPages} onClick={() => load(page + 1)}
+              className="rounded-full border border-border px-4 py-2 text-sm text-muted disabled:opacity-40 hover:text-text">
+              Next →
+            </button>
           </div>
         )}
       </div>

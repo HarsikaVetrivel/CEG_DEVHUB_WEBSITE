@@ -775,20 +775,188 @@ function UsersPage() {
   );
 }
 
+// ══ Win Claims Verification Page ════════════════════════════════════
+type WinClaim = {
+  _id: string;
+  outcome: string;
+  proofUrl: string | null;
+  verificationStatus: 'UNVERIFIED' | 'VERIFIED' | 'REJECTED';
+  updatedAt: string;
+  student?: { fullName: string; email: string; course: string | null; yearOfStudy: number | null };
+  hackathon?: { name: string; slug: string; endDate: string };
+};
+
+const CLAIM_STATUS_COLORS: Record<string, string> = {
+  UNVERIFIED: 'border-amber-500/30 bg-amber-500/10 text-amber-300',
+  VERIFIED:   'border-emerald-500/30 bg-emerald-500/10 text-emerald-300',
+  REJECTED:   'border-rose-500/30 bg-rose-500/10 text-rose-300',
+};
+
+function WinClaimsPage() {
+  const [claims, setClaims] = useState<WinClaim[]>([]);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [filterStatus, setFilterStatus] = useState<'' | 'UNVERIFIED' | 'VERIFIED' | 'REJECTED'>('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [noteId, setNoteId] = useState<string | null>(null);
+  const [adminNote, setAdminNote] = useState('');
+
+  const load = async (p = 1) => {
+    setLoading(true);
+    setError('');
+    try {
+      const params = new URLSearchParams({ page: String(p), limit: '20' });
+      if (filterStatus) params.set('status', filterStatus);
+      const res = await apiFetch<{ data: { items: WinClaim[]; pagination: { total: number; totalPages: number } } }>(
+        `/api/v1/admin/win-claims?${params}`,
+      );
+      setClaims(res.data.items);
+      setTotal(res.data.pagination.total);
+      setTotalPages(res.data.pagination.totalPages);
+      setPage(p);
+    } catch (e) { setError(e instanceof Error ? e.message : 'Failed to load claims.'); }
+    finally { setLoading(false); }
+  };
+
+  useEffect(() => { void load(1); }, [filterStatus]);
+
+  const review = async (id: string, status: 'VERIFIED' | 'REJECTED') => {
+    setBusyId(id);
+    try {
+      const csrf = await getCsrfToken();
+      await apiFetch(`/api/v1/admin/win-claims/${id}`, {
+        method: 'PATCH', headers: { 'X-CSRF-Token': csrf },
+        body: JSON.stringify({ verificationStatus: status, ...(adminNote.trim() ? { adminNote: adminNote.trim() } : {}) }),
+      });
+      setNoteId(null);
+      setAdminNote('');
+      await load(page);
+    } catch (e) { setError(e instanceof Error ? e.message : 'Failed to update claim.'); }
+    finally { setBusyId(null); }
+  };
+
+  const fmtDate = (d: string) => new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(d));
+
+  return (
+    <div>
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-xl font-bold text-white">Win Claims Review</h2>
+          <p className="text-sm text-muted mt-0.5">{total} total claims</p>
+        </div>
+        <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value as typeof filterStatus)}
+          className="rounded-xl border border-border bg-card px-3 py-2 text-sm text-text">
+          <option value="">All statuses</option>
+          <option value="UNVERIFIED">Pending review</option>
+          <option value="VERIFIED">Verified</option>
+          <option value="REJECTED">Rejected</option>
+        </select>
+      </div>
+
+      {error && <p className="mb-4 rounded-2xl border border-rose-500/30 bg-rose-500/10 p-4 text-sm text-rose-300">{error}</p>}
+
+      {loading ? (
+        <div className="space-y-2">{Array.from({ length: 5 }, (_, i) => <div key={i} className="h-20 animate-pulse rounded-[20px] bg-card" />)}</div>
+      ) : claims.length === 0 ? (
+        <div className="rounded-[28px] border border-border bg-card py-16 text-center">
+          <p className="text-3xl">🏅</p>
+          <p className="mt-3 text-muted">No claims to review.</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {claims.map((c) => (
+            <div key={c._id} className="rounded-[20px] border border-border bg-card p-5">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="flex-1">
+                  <div className="flex flex-wrap items-center gap-2 mb-1">
+                    <span className="text-sm font-bold text-white">{c.student?.fullName ?? 'Unknown'}</span>
+                    <span className="text-xs text-muted">{c.student?.email}</span>
+                    {c.student?.course && <span className="text-xs text-muted">· {c.student.course}</span>}
+                  </div>
+                  <p className="text-sm text-muted">
+                    Claimed <span className="font-semibold text-amber-300">{c.outcome.replace('_', ' ')}</span>
+                    {c.hackathon ? <> at <span className="text-text">{c.hackathon.name}</span></> : null}
+                    {c.hackathon?.endDate ? <> (ended {fmtDate(c.hackathon.endDate)})</> : null}
+                  </p>
+                  {c.proofUrl ? (
+                    <a href={c.proofUrl} target="_blank" rel="noopener noreferrer"
+                      className="mt-1.5 block text-xs text-highlight hover:underline truncate max-w-lg">🔗 {c.proofUrl}</a>
+                  ) : (
+                    <p className="mt-1 text-xs text-rose-400">No proof URL provided</p>
+                  )}
+                </div>
+                <span className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${CLAIM_STATUS_COLORS[c.verificationStatus]}`}>
+                  {c.verificationStatus}
+                </span>
+              </div>
+
+              {noteId === c._id && (
+                <div className="mt-3">
+                  <input type="text" value={adminNote} onChange={(e) => setAdminNote(e.target.value)}
+                    placeholder="Optional note to student" maxLength={500}
+                    className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm text-text outline-none focus:border-primary" />
+                </div>
+              )}
+
+              {c.verificationStatus !== 'VERIFIED' && (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button disabled={!!busyId} onClick={() => { setNoteId(c._id); setAdminNote(''); }}
+                    className="rounded-full border border-border px-3 py-1.5 text-xs text-muted hover:border-primary/40 hover:text-highlight disabled:opacity-40">
+                    {noteId === c._id ? 'Note ready' : 'Add note'}
+                  </button>
+                  <button disabled={!!busyId} onClick={() => review(c._id, 'VERIFIED')}
+                    className="rounded-full border border-emerald-500/40 bg-emerald-500/10 px-4 py-1.5 text-xs font-semibold text-emerald-300 hover:bg-emerald-500/20 disabled:opacity-40">
+                    {busyId === c._id ? 'Saving...' : 'Verify'}
+                  </button>
+                  {c.verificationStatus !== 'REJECTED' && (
+                    <button disabled={!!busyId} onClick={() => review(c._id, 'REJECTED')}
+                      className="rounded-full border border-rose-500/30 bg-rose-500/10 px-4 py-1.5 text-xs font-semibold text-rose-300 hover:bg-rose-500/20 disabled:opacity-40">
+                      Reject
+                    </button>
+                  )}
+                </div>
+              )}
+              {c.verificationStatus === 'VERIFIED' && (
+                <button disabled={!!busyId} onClick={() => review(c._id, 'REJECTED')}
+                  className="mt-3 rounded-full border border-border px-3 py-1.5 text-xs text-muted hover:border-rose-400/40 hover:text-rose-300 disabled:opacity-40">
+                  Revoke verification
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {totalPages > 1 && (
+        <div className="mt-5 flex items-center justify-center gap-3">
+          <button disabled={page <= 1} onClick={() => load(page - 1)}
+            className="rounded-full border border-border px-4 py-2 text-sm text-muted disabled:opacity-40 hover:text-text">Prev</button>
+          <span className="text-sm text-muted">Page {page} of {totalPages}</span>
+          <button disabled={page >= totalPages} onClick={() => load(page + 1)}
+            className="rounded-full border border-border px-4 py-2 text-sm text-muted disabled:opacity-40 hover:text-text">Next</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ══ Tabbed Admin Home ════════════════════════════════════════════════
-type AdminTab = 'hackathons' | 'users';
+type AdminTab = 'hackathons' | 'users' | 'winclaims';
 
 export function AdminHome() {
   const [activeTab, setActiveTab] = useState<AdminTab>('hackathons');
 
   const tabs: { id: AdminTab; label: string; icon: string }[] = [
     { id: 'hackathons', label: 'Hackathon Management', icon: '🏆' },
-    { id: 'users', label: 'User Verification', icon: '👥' },
+    { id: 'users',      label: 'User Verification',    icon: '👥' },
+    { id: 'winclaims', label: 'Win Claims',            icon: '🔍' },
   ];
 
   return (
     <AdminShell>
-      {/* Tab bar */}
       <div className="mb-6 flex gap-1 rounded-[20px] border border-border bg-card p-1">
         {tabs.map((tab) => (
           <button
@@ -796,9 +964,7 @@ export function AdminHome() {
             type="button"
             onClick={() => setActiveTab(tab.id)}
             className={`flex flex-1 items-center justify-center gap-2 rounded-[16px] py-2.5 text-sm font-medium transition ${
-              activeTab === tab.id
-                ? 'bg-primary/20 text-highlight'
-                : 'text-muted hover:text-text'
+              activeTab === tab.id ? 'bg-primary/20 text-highlight' : 'text-muted hover:text-text'
             }`}
           >
             <span aria-hidden="true">{tab.icon}</span>
@@ -808,7 +974,8 @@ export function AdminHome() {
       </div>
 
       {activeTab === 'hackathons' && <HackathonsPageInner />}
-      {activeTab === 'users' && <UsersPage />}
+      {activeTab === 'users'      && <UsersPage />}
+      {activeTab === 'winclaims' && <WinClaimsPage />}
     </AdminShell>
   );
 }

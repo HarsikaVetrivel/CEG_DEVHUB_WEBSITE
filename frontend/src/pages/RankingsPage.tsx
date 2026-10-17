@@ -12,6 +12,8 @@ type LeaderboardEntry = {
   podiums: number;
   user: { fullName: string; course: string | null; yearOfStudy: number | null; interestedDomains: string[] };
   achievements: { achievementKey: string }[];
+  /** Snapshot of the student's latest win verification status from participation docs */
+  topVerificationStatus?: 'UNVERIFIED' | 'VERIFIED' | 'REJECTED' | null;
 };
 
 const RANK_COLORS = ['text-amber-400', 'text-slate-300', 'text-amber-600'];
@@ -141,7 +143,15 @@ export function RankingsPage() {
                       </td>
                       <td className="px-4 py-3 text-right text-sm text-muted">{entry.participations}</td>
                       <td className="px-4 py-3 text-right font-semibold text-white">{entry.completions}</td>
-                      <td className="px-4 py-3 text-right font-semibold text-amber-400">{entry.wins}</td>
+                      <td className="px-4 py-3 text-right font-semibold">
+                        {entry.wins > 0 ? (
+                          <span className="inline-flex items-center gap-1">
+                            <span className="text-amber-400">{entry.wins}</span>
+                            {entry.topVerificationStatus === 'VERIFIED' && <span title="Verified win">✅</span>}
+                            {entry.topVerificationStatus === 'UNVERIFIED' && <span title="Pending verification" className="text-amber-300">🔍</span>}
+                          </span>
+                        ) : <span className="text-muted">—</span>}
+                      </td>
                     </tr>
                   );
                 })}

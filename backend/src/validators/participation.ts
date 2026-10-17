@@ -1,4 +1,4 @@
-﻿import { z } from 'zod';
+import { z } from 'zod';
 import { PARTICIPATION_STATUSES, PARTICIPATION_OUTCOMES } from '../models/Participation.js';
 
 export const createParticipationSchema = z.object({
@@ -15,14 +15,22 @@ export const updateParticipationSchema = z
     teamName: z.string().trim().max(120).optional().nullable(),
     note: z.string().trim().max(500).optional().nullable(),
     completedAt: z.string().datetime().optional().nullable(),
+    proofUrl: z.string().url('Must be a valid URL.').max(2000).optional().nullable(),
   })
   .refine(
     (data) => {
-      // outcome can only be set when status is COMPLETED
       if (data.outcome && data.status && data.status !== 'COMPLETED') return false;
       return true;
     },
     { message: 'Outcome can only be set when status is COMPLETED.', path: ['outcome'] },
+  )
+  .refine(
+    (data) => {
+      const podiumOutcomes = ['WINNER', 'RUNNER_UP', 'FINALIST'];
+      if (data.outcome && podiumOutcomes.includes(data.outcome) && !data.proofUrl) return false;
+      return true;
+    },
+    { message: 'A proof URL is required for WINNER, RUNNER_UP, or FINALIST outcomes.', path: ['proofUrl'] },
   );
 
 export const rankingsQuerySchema = z.object({

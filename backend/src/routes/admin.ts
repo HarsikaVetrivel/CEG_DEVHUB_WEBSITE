@@ -270,4 +270,97 @@ router.patch('/users/:id/verify', requireCsrf, async (req, res, next) => {
   }
 });
 
+// ── GET /admin/win-claims — list podium claims needing review ─────
+const winClaimsQuerySchema = z.object({
+  page:   z.coerce.number().int().min(1).default(1),
+  limit:  z.coerce.number().int().min(1).max(100).default(20),
+  status: z.enum(['UNVERIFIED', 'VERIFIED', 'REJECTED']).optional(),
+});
+
+router.get('/win-claims', async (req, res, next) => {
+  const parsed = winClaimsQuerySchema.safeParse(req.query);
+  if (!parsed.success) {
+    return res.status(400).json({ success: false, error: { message: 'Invalid query params.' } });
+  }
+  try {
+    const Participation = (await import('../models/Participation.js')).default;
+    const { page, limit, status } = parsed.data;
+    const skip = (page - 1) * limit;
+    const match: Record<string, unknown> = {
+      outcome: { $in: ['WINNER', 'RUNNER_UP', 'FINALIST'] },
+    };
+    if (status) match['verificationStatus'] = status;
+    else match['verificationStatus'] = { $in: ['UNVERIFIED', 'VERIFIED', 'REJECTED'] };
+
+    const [result] = await Participation.aggregate([
+      { $match: match },
+      { $facet: {
+        items: [
+          { $sort: { updatedAt: -1 } }, { $skip: skip }, { $limit: limit },
+          { $lookup: { from: 'users', localField: 'userId', foreignField: '_id', as: 'student',
+              pipeline: [{ $project: { fullName: 1, email: 1, course: 1, yearOfStudy: 1 } }] } },
+          { $unwind: { path: '$student', preserveNullAndEmptyArrays: true } },
+          { $lookup: { from: 'hackathons', localField: 'hackathonId', foreignField: '_id', as: 'hackathon',
+              pipeline: [{ $project: { name: 1, slug: 1, endDate: 1 } }] } },
+          { $unwind: { path: '$hackathon', preserveNullAndEmptyArrays: true } },
+        ],
+        total: [{ $count: 'n' }],
+      } },
+    ]);
+
+    const total = (result?.total?.[0]?.n as number) ?? 0;
+    return res.json({
+      success: true,
+      data: {
+        items: result?.items ?? [],
+        pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+      },
+    });
+  } catch (error) { return next(error); }
+});
+
+// ── PATCH /admin/win-claims/:id — approve or reject a claim ──────
+const reviewClaimBodySchema = z.object({
+  verificationStatus: z.enum(['VERIFIED', 'REJECTED']),
+  adminNote: z.string().trim().max(500).optional(),
+});
+
+router.patch('/win-claims/:id', requireCsrf, async (req, res, next) => {
+  const id = req.params.id as string;
+  if (!id || id.length !== 24) {
+    return res.status(400).json({ success: false, error: { message: 'Invalid participation ID.' } });
+  }
+  const parsed = reviewClaimBodySchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ success: false, error: { message: 'Validation failed.', details: parsed.error.flatten() } });
+  }
+  try {
+    const Participation = (await import('../models/Participation.js')).default;
+    const Notification = (await import('../models/Notification.js')).default;
+
+    const participation = await Participation.findOneAndUpdate(
+      { _id: id, outcome: { $in: ['WINNER', 'RUNNER_UP', 'FINALIST'] } },
+      { $set: { verificationStatus: parsed.data.verificationStatus } },
+      { returnDocument: 'after' },
+    );
+    if (!participation) {
+      return res.status(404).json({ success: false, error: { message: 'Podium claim not found.' } });
+    }
+
+    // Notify the student of the decision
+    const isVerified = parsed.data.verificationStatus === 'VERIFIED';
+    await Notification.create({
+      userId: participation.userId,
+      type: 'SYSTEM',
+      title: isVerified ? '✅ Your win was verified!' : '❌ Win claim not verified',
+      body: isVerified
+        ? `Your ${participation.outcome?.replace('_', ' ')} claim has been verified by an admin. It now shows as ✅ on the leaderboard.`
+        : `Your ${participation.outcome?.replace('_', ' ')} claim could not be verified.${parsed.data.adminNote ? ' Note: ' + parsed.data.adminNote : ''} Please update your proof URL if you believe this is an error.`,
+      readAt: null,
+    });
+
+    return res.json({ success: true, data: { participation } });
+  } catch (error) { return next(error); }
+});
+
 export default router;
