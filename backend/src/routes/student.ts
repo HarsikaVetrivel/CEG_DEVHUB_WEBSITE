@@ -249,7 +249,15 @@ router.get('/participations/:id', async (req, res, next) => {
 
 router.patch('/participations/:id', requireCsrf, async (req, res, next) => {
   const parsed = updateParticipationSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ success: false, error: { message: 'Validation failed.', details: parsed.error.flatten() } });
+  if (!parsed.success) {
+    // Extract the first meaningful refine message so the UI shows
+    // e.g. "A proof URL is required…" instead of generic "Validation failed."
+    const flat = parsed.error.flatten();
+    const firstFormError = flat.formErrors[0];
+    const firstFieldError = Object.values(flat.fieldErrors).flat()[0];
+    const humanMessage = firstFormError ?? firstFieldError ?? 'Validation failed.';
+    return res.status(400).json({ success: false, error: { message: humanMessage, details: flat } });
+  }
   try {
     const participation = await updateParticipation(req.user!.id, req.params.id as string, parsed.data);
     return res.json({ success: true, data: { participation } });

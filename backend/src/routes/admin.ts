@@ -327,37 +327,58 @@ const reviewClaimBodySchema = z.object({
 
 router.patch('/win-claims/:id', requireCsrf, async (req, res, next) => {
   const id = req.params.id as string;
-  if (!id || id.length !== 24) {
+
+  // Bug fix 1: use mongoose ObjectId validation, not string length check
+  const mongoose = (await import('mongoose')).default;
+  if (!mongoose.isValidObjectId(id)) {
     return res.status(400).json({ success: false, error: { message: 'Invalid participation ID.' } });
   }
+
   const parsed = reviewClaimBodySchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ success: false, error: { message: 'Validation failed.', details: parsed.error.flatten() } });
   }
+
   try {
     const Participation = (await import('../models/Participation.js')).default;
-    const Notification = (await import('../models/Notification.js')).default;
+    const Notification  = (await import('../models/Notification.js')).default;
+
+    const isRejection = parsed.data.verificationStatus === 'REJECTED';
+
+    // On REJECT: clear outcome + proofUrl so the student's card shows no win badge
+    // and they can re-claim with better proof. On VERIFY: only update verificationStatus.
+    const dbUpdate = isRejection
+      ? { $set: { verificationStatus: 'REJECTED' }, $unset: { outcome: 1, proofUrl: 1 } }
+      : { $set: { verificationStatus: parsed.data.verificationStatus } };
 
     const participation = await Participation.findOneAndUpdate(
       { _id: id, outcome: { $in: ['WINNER', 'RUNNER_UP', 'FINALIST'] } },
-      { $set: { verificationStatus: parsed.data.verificationStatus } },
-      { returnDocument: 'after' },
+      dbUpdate,
+      { new: false },   // new:false → return PRE-update doc so we still know the outcome for the notification
     );
     if (!participation) {
       return res.status(404).json({ success: false, error: { message: 'Podium claim not found.' } });
     }
 
-    // Notify the student of the decision
-    const isVerified = parsed.data.verificationStatus === 'VERIFIED';
-    await Notification.create({
-      userId: participation.userId,
-      type: 'SYSTEM',
-      title: isVerified ? '✅ Your win was verified!' : '❌ Win claim not verified',
-      body: isVerified
-        ? `Your ${participation.outcome?.replace('_', ' ')} claim has been verified by an admin. It now shows as ✅ on the leaderboard.`
-        : `Your ${participation.outcome?.replace('_', ' ')} claim could not be verified.${parsed.data.adminNote ? ' Note: ' + parsed.data.adminNote : ''} Please update your proof URL if you believe this is an error.`,
-      readAt: null,
-    });
+    // Bug fix 3 & 4: wrap notification creation in its own try-catch and
+    // do NOT pass readAt:null — Mongoose's Date caster throws a CastError
+    // when given explicit null on create(). Omitting the field leaves it undefined
+    // (the schema default) which is fine.
+    try {
+      const isVerified = parsed.data.verificationStatus === 'VERIFIED';
+      const outcomeLabel = (participation.outcome as string | null)?.replace(/_/g, ' ') ?? 'podium';
+      await Notification.create({
+        userId: participation.userId,
+        type: 'SYSTEM',
+        title: isVerified ? '✅ Your win was verified!' : '❌ Win claim not verified',
+        body: isVerified
+          ? `Your ${outcomeLabel} claim has been verified by an admin. It now shows as ✅ on the leaderboard.`
+          : `Your ${outcomeLabel} claim could not be verified.${parsed.data.adminNote ? ' Note: ' + parsed.data.adminNote : ''} Update your proof URL and re-submit if you believe this is an error.`,
+      });
+    } catch (notifErr) {
+      // Notification failure is non-critical — log and continue
+      console.error('Win claim notification failed (verification was still applied):', notifErr);
+    }
 
     return res.json({ success: true, data: { participation } });
   } catch (error) { return next(error); }

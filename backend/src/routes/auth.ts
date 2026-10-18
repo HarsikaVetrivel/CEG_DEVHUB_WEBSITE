@@ -12,6 +12,16 @@ import {
 import { requireAuth } from '../middleware/auth.js';
 import { csrfTokenHandler, requireCsrf } from '../middleware/csrf.js';
 
+// Same strong-password rule used in registerSchema — applied to all password-change flows too
+const strongPassword = z
+  .string()
+  .min(8, 'Password must be at least 8 characters.')
+  .max(128, 'Password must be at most 128 characters.')
+  .regex(/[A-Z]/, 'Password must contain at least one uppercase letter.')
+  .regex(/[a-z]/, 'Password must contain at least one lowercase letter.')
+  .regex(/[0-9]/, 'Password must contain at least one number.')
+  .regex(/[^A-Za-z0-9]/, 'Password must contain at least one special character (e.g. @, #, !).');
+
 const router = Router();
 
 router.get('/csrf', csrfTokenHandler);
@@ -32,13 +42,10 @@ router.post('/register', requireCsrf, async (req, res, next) => {
   try {
     const parsed = registerSchema.safeParse(req.body);
     if (!parsed.success) {
-      return res.status(400).json({
-        success: false,
-        error: {
-          message: 'Validation failed.',
-          details: parsed.error.flatten(),
-        },
-      });
+      const flat = parsed.error.flatten();
+      const firstFieldError = Object.values(flat.fieldErrors).flat()[0];
+      const firstFormError  = flat.formErrors[0];
+      return res.status(400).json({ success: false, error: { message: firstFieldError ?? firstFormError ?? 'Validation failed.', details: flat } });
     }
 
     const { fullName, email, password } = parsed.data;
@@ -57,13 +64,10 @@ router.post('/login', requireCsrf, async (req, res, next) => {
   try {
     const parsed = loginSchema.safeParse(req.body);
     if (!parsed.success) {
-      return res.status(400).json({
-        success: false,
-        error: {
-          message: 'Validation failed.',
-          details: parsed.error.flatten(),
-        },
-      });
+      const flat = parsed.error.flatten();
+      const firstFieldError = Object.values(flat.fieldErrors).flat()[0];
+      const firstFormError  = flat.formErrors[0];
+      return res.status(400).json({ success: false, error: { message: firstFieldError ?? firstFormError ?? 'Validation failed.', details: flat } });
     }
 
     const { email, password } = parsed.data;
@@ -184,8 +188,8 @@ router.patch('/profile', requireAuth, requireCsrf, async (req, res, next) => {
  */
 const changePasswordSchema = z.object({
   currentPassword: z.string().min(1, 'Current password is required.'),
-  newPassword: z.string().min(8).max(128),
-  confirmNewPassword: z.string().min(8).max(128),
+  newPassword: strongPassword,
+  confirmNewPassword: z.string(),
 }).refine((d) => d.newPassword === d.confirmNewPassword, {
   message: 'New passwords do not match.',
   path: ['confirmNewPassword'],
@@ -231,8 +235,8 @@ router.post('/forgot-password', requireCsrf, async (req, res, next) => {
 // ── POST /auth/reset-password ─────────────────────────────────────
 const resetPasswordSchema = z.object({
   token: z.string().min(1),
-  newPassword: z.string().min(8).max(128),
-  confirmNewPassword: z.string().min(8).max(128),
+  newPassword: strongPassword,
+  confirmNewPassword: z.string(),
 }).refine((d) => d.newPassword === d.confirmNewPassword, {
   message: 'Passwords do not match.',
   path: ['confirmNewPassword'],

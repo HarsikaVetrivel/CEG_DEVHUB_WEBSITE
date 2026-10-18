@@ -77,7 +77,7 @@ const participationSchema = new mongoose.Schema(
      */
     verificationStatus: {
       type: String,
-      enum: [...VERIFICATION_STATUSES, null],
+      enum: VERIFICATION_STATUSES,   // null is allowed automatically for non-required String fields
       default: null,
     },
   },

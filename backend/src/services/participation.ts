@@ -50,7 +50,6 @@ async function checkAndAwardAchievements(
         type: 'achievement',
         title: `Achievement unlocked: ${ACHIEVEMENT_META[key].icon} ${ACHIEVEMENT_META[key].label}`,
         body: ACHIEVEMENT_META[key].description,
-        readAt: null,
       })),
     );
   }
@@ -79,6 +78,20 @@ export const updateParticipation = async (
   },
 ) => {
   if (!mongoose.isValidObjectId(participationId)) throw createError(400, 'Invalid participation ID.');
+
+  // Issue 3: podium claims only allowed after the hackathon has ended
+  const isPodiumClaim = patch.outcome && (VERIFIABLE_OUTCOMES as readonly string[]).includes(patch.outcome);
+  if (isPodiumClaim) {
+    const existing = await Participation.findOne({ _id: participationId, userId }).select('hackathonId');
+    if (!existing) throw createError(404, 'Participation not found.');
+    const hackathon = await Hackathon.findById(existing.hackathonId).select('endDate registrationDeadline');
+    // Use registration deadline as the cutoff (the event must be over)
+    const cutoff = hackathon?.endDate ?? hackathon?.registrationDeadline;
+    if (!cutoff || new Date() < new Date(cutoff)) {
+      throw createError(400, 'You can only claim a podium outcome after the hackathon has ended.');
+    }
+  }
+
   const update: Record<string, unknown> = {};
   if (patch.status !== undefined)    update['status']    = patch.status;
   if (patch.outcome !== undefined)   update['outcome']   = patch.outcome;
@@ -90,10 +103,8 @@ export const updateParticipation = async (
   // Auto-set verificationStatus when outcome changes
   if (patch.outcome !== undefined) {
     if (patch.outcome && (VERIFIABLE_OUTCOMES as readonly string[]).includes(patch.outcome)) {
-      // Podium claim → needs admin review
       update['verificationStatus'] = 'UNVERIFIED';
     } else {
-      // Clearing outcome or setting PARTICIPANT → no verification needed
       update['verificationStatus'] = null;
     }
   }
@@ -152,20 +163,33 @@ export const getLeaderboard = async (sort: 'completions' | 'wins', domain: strin
   if (domain) hackathonMatch['domains'] = domain;
   const hackathonIds = domain ? await Hackathon.find(hackathonMatch).distinct('_id') : null;
 
-  // Include all active participations (not just COMPLETED) so students appear immediately
   const participationMatch: Record<string, unknown> = { status: { $ne: 'WITHDREW' } };
   if (hackathonIds) participationMatch['hackathonId'] = { $in: hackathonIds };
+
+  // Only VERIFIED podium outcomes count toward wins/podiums on the leaderboard.
+  // An unverified or rejected claim is not counted until an admin approves it.
+  const isVerifiedWinner   = { $and: [{ $eq: ['$outcome', 'WINNER'] },  { $eq: ['$verificationStatus', 'VERIFIED'] }] };
+  const isVerifiedPodium   = { $and: [{ $in: ['$outcome', ['WINNER', 'RUNNER_UP', 'FINALIST']] }, { $eq: ['$verificationStatus', 'VERIFIED'] }] };
 
   const pipeline: mongoose.PipelineStage[] = [
     { $match: participationMatch },
     { $group: {
       _id: '$userId',
       participations: { $sum: 1 },
-      completions: { $sum: { $cond: [{ $eq: ['$status', 'COMPLETED'] }, 1, 0] } },
-      wins:         { $sum: { $cond: [{ $eq: ['$outcome', 'WINNER'] }, 1, 0] } },
-      podiums:      { $sum: { $cond: [{ $in: ['$outcome', ['WINNER', 'RUNNER_UP', 'FINALIST']] }, 1, 0] } },
+      completions:    { $sum: { $cond: [{ $eq: ['$status', 'COMPLETED'] }, 1, 0] } },
+      wins:           { $sum: { $cond: [isVerifiedWinner, 1, 0] } },
+      podiums:        { $sum: { $cond: [isVerifiedPodium, 1, 0] } },
+      // Track whether the student has any UNVERIFIED podium claim for the badge
+      hasUnverifiedClaim: { $max: {
+        $cond: [
+          { $and: [
+            { $in: ['$outcome', ['WINNER', 'RUNNER_UP', 'FINALIST']] },
+            { $in: ['$verificationStatus', ['UNVERIFIED', null]] },
+          ] },
+          1, 0,
+        ],
+      } },
     } },
-    // Sort: wins/completions first, then participations as a tiebreaker
     { $sort: sort === 'wins'
       ? { wins: -1, completions: -1, participations: -1 } as any
       : { completions: -1, wins: -1, participations: -1 } as any },
@@ -177,6 +201,13 @@ export const getLeaderboard = async (sort: 'completions' | 'wins', domain: strin
         { $unwind: '$user' },
         { $lookup: { from: 'userachievements', localField: '_id', foreignField: 'userId', as: 'achievements',
             pipeline: [{ $project: { achievementKey: 1 } }] } },
+        // topVerificationStatus: VERIFIED if wins>0, UNVERIFIED if pending, else null
+        { $addFields: {
+          topVerificationStatus: {
+            $cond: [{ $gt: ['$wins', 0] }, 'VERIFIED',
+              { $cond: [{ $eq: ['$hasUnverifiedClaim', 1] }, 'UNVERIFIED', null] }],
+          },
+        } },
       ],
       total: [{ $count: 'n' }],
     } },

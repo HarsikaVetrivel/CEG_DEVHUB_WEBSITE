@@ -3,6 +3,7 @@ import Bookmark from '../models/Bookmark.js';
 import Hackathon from '../models/Hackathon.js';
 import Notification from '../models/Notification.js';
 import User from '../models/User.js';
+import { sendReminderEmail } from './email.js';
 
 const formatterFor = (timeZone: string) =>
   new Intl.DateTimeFormat('en-US', {
@@ -172,12 +173,12 @@ export const processDueReminders = async () => {
 
       try {
         const [user, hackathon, bookmark] = await Promise.all([
-          User.findById(reminder.userId).select('reminderPreferences'),
+          User.findById(reminder.userId).select('reminderPreferences fullName email'),
           Hackathon.findOne({
             _id: reminder.hackathonId,
             listingStatus: 'PUBLISHED',
             registrationDeadline: reminder.deadlineAt,
-          }).select('name registrationDeadline'),
+          }).select('name registrationDeadline registrationUrl'),
           Bookmark.exists({ userId: reminder.userId, hackathonId: reminder.hackathonId }),
         ]);
         if (
@@ -204,7 +205,6 @@ export const processDueReminders = async () => {
               body: `${hackathon.name} registration closes in ${reminder.daysBefore} ${reminder.daysBefore === 1 ? 'day' : 'days'}.`,
               hackathonId: reminder.hackathonId,
               dedupeKey: reminder.dedupeKey,
-              readAt: null,
             },
           },
           { upsert: true, returnDocument: 'after' },
@@ -217,6 +217,19 @@ export const processDueReminders = async () => {
             $unset: { leaseUntil: 1, lastError: 1 },
           },
         );
+
+        // Send email reminder (non-blocking — email failure doesn't revert SENT status)
+        if (user && hackathon) {
+          void sendReminderEmail(
+            (user as any).email as string,
+            (user as any).fullName as string,
+            hackathon.name,
+            reminder.daysBefore,
+            hackathon.registrationUrl ?? `${process.env['APP_URL'] ?? ''}/hackathons`,
+          ).catch((emailErr: unknown) => {
+            console.error('Reminder email delivery failed (notification was still created):', emailErr);
+          });
+        }
       } catch (error) {
         const attempts = reminder.attemptCount + 1;
         await ReminderDelivery.updateOne(

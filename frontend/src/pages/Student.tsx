@@ -107,6 +107,8 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
+  const [passwordVal, setPasswordVal] = useState('');
+  const [emailVal, setEmailVal] = useState('');
   const navigate = useNavigate();
   const { status, user, refresh } = useAuth();
 
@@ -179,12 +181,43 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
           )}
           <label className="block text-sm text-muted">
             College email
-            <input className="filter-input mt-2" name="email" type="email" autoComplete="email" required />
+            <input
+              className="filter-input mt-2" name="email" type="email"
+              autoComplete="email" required
+              placeholder={mode === 'register' ? 'yourname@student.annauniv.edu' : ''}
+              onChange={mode === 'register' ? (e) => setEmailVal(e.target.value) : undefined}
+            />
           </label>
+          {mode === 'register' && emailVal && !emailVal.endsWith('@student.annauniv.edu') && (
+            <p className="mt-1 text-xs text-amber-400">
+              ⚠ Only <span className="font-semibold">@student.annauniv.edu</span> email addresses are accepted.
+            </p>
+          )}
           <label className="block text-sm text-muted">
             Password
-            <PasswordInput className="filter-input mt-2 w-full" name="password" minLength={8} maxLength={128} autoComplete={mode === 'login' ? 'current-password' : 'new-password'} required />
+            <PasswordInput
+              className="filter-input mt-2 w-full" name="password"
+              minLength={8} maxLength={128}
+              autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+              required
+              onChange={mode === 'register' ? (e) => setPasswordVal((e.target as HTMLInputElement).value) : undefined}
+            />
           </label>
+          {mode === 'register' && passwordVal && (
+            <ul className="mt-1 space-y-1 rounded-xl border border-border bg-card/60 px-4 py-3 text-xs">
+              {([
+                [/[A-Z]/, 'One uppercase letter (A–Z)'],
+                [/[a-z]/, 'One lowercase letter (a–z)'],
+                [/[0-9]/, 'One number (0–9)'],
+                [/[^A-Za-z0-9]/, 'One special character (@, #, ! …)'],
+                [/.{8}/, 'At least 8 characters'],
+              ] as [RegExp, string][]).map(([re, label]) => (
+                <li key={label} className={`flex items-center gap-2 ${re.test(passwordVal) ? 'text-emerald-400' : 'text-muted'}`}>
+                  <span>{re.test(passwordVal) ? '✓' : '◦'}</span> {label}
+                </li>
+              ))}
+            </ul>
+          )}
           {mode === 'register' && (
             <label className="block text-sm text-muted">
               Confirm password

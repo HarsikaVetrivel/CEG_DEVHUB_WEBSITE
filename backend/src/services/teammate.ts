@@ -174,7 +174,6 @@ export const applyToTeam = async (applicantId: string, requestId: string, messag
     type: 'team_application',
     title: `New team application from ${applicantUser.fullName}`,
     body: `Someone wants to join your team for ${hackathonName}. Review their application.`,
-    readAt: null,
     relatedId: application._id,
   });
 
@@ -240,7 +239,6 @@ export const respondToApplication = async (
     body: newStatus === 'ACCEPTED'
       ? `You have been accepted to a team for ${hackathon?.name ?? 'a hackathon'}. Good luck!`
       : `Your application to ${hackathon?.name ?? 'a hackathon'} was not accepted this time.`,
-    readAt: null,
     relatedId: application._id,
   });
 
