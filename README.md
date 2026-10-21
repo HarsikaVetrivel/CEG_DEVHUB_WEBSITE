@@ -1,61 +1,159 @@
 # CEG DEV HUB
 
-CEG DEV HUB is a hackathon discovery and student-planning web application. The current implementation covers the initial foundation and Phases 1–5. It consists of a React/Vite frontend and an Express/TypeScript API backed by MongoDB.
+CEG DEV HUB is a hackathon discovery and student-collaboration web application for students of CEG (College of Engineering, Guindy). It consists of a **React 19 / Vite 8 / TypeScript** frontend styled with **Tailwind CSS v4**, and an **Express 4 / TypeScript / MongoDB** backend with session-based authentication and a full admin panel.
 
-## Implemented so far
+## Tech Stack
 
-- **Application foundation:** React, TypeScript, Vite and Tailwind frontend; Express API; initial landing page and routing.
-- **Student accounts and sessions:** Registration, login, logout and current-user endpoints; bcrypt password hashing; MongoDB-backed sessions; session-bound CSRF protection.
-- **Hackathon discovery:** Public listing and detail endpoints, published-listing filtering, pagination, search/filter support, and frontend discovery/detail views.
-- **Student dashboard:** Authenticated dashboard, bookmarks, notifications and reminder preferences.
-- **Deadline reminders:** A backend scheduler creates in-app reminders for bookmarked hackathons. Delivery records support idempotent processing and retry handling.
-- **API documentation:** OpenAPI specification is in [`backend/openapi.yaml`](backend/openapi.yaml).
+| Layer | Technology |
+|---|---|
+| Frontend | React 19, React Router v7, TypeScript ~6, Vite 8, Tailwind CSS v4 |
+| Backend | Express 4, TypeScript 5, Mongoose 9, MongoDB |
+| Auth | express-session + connect-mongo, bcryptjs, session-bound CSRF |
+| Validation | Zod |
+| Email | Nodemailer |
+| Security | Helmet, express-rate-limit |
 
-Hackathon listings must be published in MongoDB before they appear in discovery. There is not yet an admin interface or a supported admin-provisioning workflow, so a new local database may show no listings.
+## Project Structure
 
-## Not implemented yet
+```
+CEG_DEVHUB_WEBSITE/
+├── backend/
+│   ├── src/
+│   │   ├── config/          # DB connection, env loading
+│   │   ├── middleware/      # auth, CSRF, error handling
+│   │   ├── models/          # Mongoose models
+│   │   ├── routes/          # Express route handlers
+│   │   ├── scripts/         # seedAdmin.ts
+│   │   ├── services/        # Business logic
+│   │   ├── types/           # Shared TypeScript types
+│   │   ├── utils/           # Helpers (errors, etc.)
+│   │   ├── validators/      # Zod schemas
+│   │   ├── app.ts
+│   │   └── index.ts
+│   ├── .env.example
+│   └── openapi.yaml
+└── frontend/
+    ├── src/
+    │   ├── assets/
+    │   ├── components/      # Navbar, ProtectedRoute, AdminRoute, ProfileDrawer, PasswordInput
+    │   ├── contexts/        # React contexts (auth, etc.)
+    │   ├── lib/             # API client utilities
+    │   ├── pages/           # Page-level components
+    │   └── App.tsx          # Route definitions
+    ├── index.html
+    └── vite.config.ts
+```
 
-The following product areas remain future work; they are not available as complete user-facing features today:
+## Implemented Features
 
-- Admin account provisioning and management UI.
-- Hackathon creation, editing, moderation, ingestion and audit workflows.
--Student participation tracking, achievement workflows and rankings.
-- Teammate discovery and collaboration features. 
-- Profile editing and password recovery.
-- Email verification and notification delivery through email or push.
-- Automated backend/frontend test suites and deployment/operations setup.
+### Authentication & Accounts
+- Student registration, login, logout
+- Profile viewing and editing
+- Password change (authenticated)
+- Forgot-password / reset-password flow (token-based, email delivery via Nodemailer)
+- Session-bound CSRF protection on all mutating routes
+- Role-based access: `STUDENT` and `ADMIN`
 
-The landing page still includes illustrative/demo content. Replace it with live data before treating it as production content.
+### Admin Panel (`/admin`)
+- Protected admin login page (`/admin/login`)
+- Full hackathon CRUD: create, read, update, delete
+- Listing-status moderation: `PENDING → PUBLISHED / REJECTED`
+- Pagination and search across all hackathon records
+- Seeded admin account via `npm run seed:admin`
 
-## Known gaps and recommended fixes
+### Hackathon Discovery
+- Public leaderboard / rankings page (`/rankings`)
+- Authenticated hackathon directory with search, filter and pagination (`/hackathons`)
+- Hackathon detail page with full metadata (`/hackathons/:slug`)
+- Supported modes: `ONLINE`, `OFFLINE`, `HYBRID`
+- Domain tags, eligibility, team-size constraints, prize details, required skills
 
-These are known limitations to address before a public production launch:
+### Student Dashboard (`/dashboard`)
+- Bookmarks: add / remove hackathons, persisted in MongoDB
+- Notifications: in-app notification list, mark-as-read
+- Reminder preferences: configurable days-before-deadline reminders
+- Backend scheduler creates `ReminderDelivery` records for bookmarked hackathons with idempotent processing and retry handling
+
+### Participations (`/participations`)
+- Log participation in hackathons (status, team name, notes, etc.)
+- Update and withdraw participation records
+- View all personal participations
+
+### Achievements (`/achievements`)
+- View earned achievements tied to hackathon participation records
+
+### Teammate Discovery (`/teammates`)
+- Create and manage team requests (skills required, hackathon, team size)
+- Browse open team requests from other students
+- Apply to join teams
+- Review incoming applications and accept / reject
+- Withdraw own applications
+
+### Data Models
+
+| Model | Purpose |
+|---|---|
+| `User` | Students and admins |
+| `Hackathon` | Core hackathon listings |
+| `Bookmark` | Student–hackathon bookmarks |
+| `Notification` | In-app notification records |
+| `ReminderDelivery` | Tracks scheduled deadline reminders |
+| `Participation` | Student participation entries |
+| `UserAchievement` | Achievement records per participation |
+| `TeamRequest` | Open teammate requests |
+| `TeamApplication` | Applications to team requests |
+| `PasswordResetToken` | Time-limited reset tokens |
+
+### API Routes
+
+| Prefix | Description |
+|---|---|
+| `GET /api/v1` | API info |
+| `GET /api/v1/health` | Health check |
+| `GET /api/v1/auth/csrf` | Fetch CSRF token |
+| `/api/v1/auth/*` | Register, login, logout, profile, change-password, forgot/reset-password |
+| `/api/v1/hackathons/*` | Public/student hackathon listing and detail |
+| `/api/v1/student/*` | Dashboard, bookmarks, notifications, reminders, participations, achievements, teammates |
+| `/api/v1/admin/*` | Admin-only hackathon management (requires `ADMIN` role) |
+| `/api/v1/stats` | Aggregate platform statistics |
+
+Full contract: [`backend/openapi.yaml`](backend/openapi.yaml)
+
+## Not Implemented Yet
+
+- Email verification on registration (college email policy enforcement)
+- Push / email delivery for reminder notifications (backend email service exists but is not wired to reminders)
+- Automated test suites (unit + integration)
+- CI/CD and deployment configuration
+- Reverse-proxy trust configuration for production
+
+The landing page still includes illustrative/demo content. Connect it to live API data before treating it as production content.
+
+## Known Gaps & Recommended Fixes
 
 | Gap | Recommended fix |
-| --- | --- |
-| The backend has a known development fallback for `SESSION_SECRET`; the production check enforces length but does not reject that exact fallback. | Require a secret supplied through the environment, reject the known fallback in every environment, and store a strong unique secret in the deployment secret manager. |
-| Authentication routes only receive the general API rate limit; there is no stricter dedicated login/registration limit. | Add and test tighter per-IP limits for login and registration, with appropriate monitoring and user feedback. |
-| There is no college-email verification or email ownership confirmation. | Define the allowed email policy and add a verification flow before relying on student identity. |
-| Reminder preference changes do not reliably reschedule already-created reminders when preferences are changed or re-enabled. | Reconcile pending reminder deliveries against current preferences and deadline data when settings change; add regression tests. |
-| Reverse-proxy trust is not configured for deployment. | Configure Express proxy trust only for the known proxy topology, then verify secure-cookie and client-IP behavior. |
-| No automated test suite currently covers the implemented flows. | Add unit/integration tests for authentication, CSRF, hackathon discovery, dashboard actions, and reminder scheduling/delivery. |
-| The home page contains demo statistics, cards and deadlines, and the database may have no published hackathons. | Connect the home page to real API data and provide an authorized admin/publishing workflow or clearly labeled empty states. |
+|---|---|
+| `SESSION_SECRET` has a known dev fallback that only checks length in production. | Require a secret supplied through the environment; reject the known fallback in **every** environment; store a strong unique secret in a secret manager. |
+| No dedicated rate limit on auth routes. | Add tighter per-IP limits for `/auth/login` and `/auth/register` with monitoring and user feedback. |
+| No college-email verification or email ownership confirmation. | Define the allowed-email policy and add a verification flow before relying on student identity. |
+| Reminder preference changes do not reconcile already-created reminders. | Reconcile pending `ReminderDelivery` records against current preferences when settings change; add regression tests. |
+| Reverse-proxy trust is not configured. | Configure Express `trust proxy` only for the known proxy topology, then verify secure-cookie and client-IP behavior. |
+| No automated test coverage. | Add unit/integration tests for auth, CSRF, hackathon discovery, dashboard actions, and reminder scheduling. |
+| Home page uses demo data; database may have no published hackathons. | Connect the home page to real API data and provide an admin publishing workflow or labelled empty states. |
 
-Do not deploy with the default session secret. External reminder delivery, account recovery, and email verification should not be assumed to exist.
+> **Do not deploy with the default session secret.** External reminder delivery, account recovery, and email verification should not be assumed to exist without additional wiring.
 
 ## Prerequisites
 
-- **Node.js 20.19 or newer** (Node.js 22.12+ recommended) and npm.
-- **MongoDB**, running locally or available through a MongoDB connection URI.
-- A terminal and web browser.
+- **Node.js 20.19+** (Node.js 22.12+ recommended) and npm
+- **MongoDB**, running locally or available via a connection URI
+- A terminal and web browser
 
-## Run locally
+## Run Locally
 
-Install and start the backend and frontend separately. Use two terminal windows from the project root.
+Use **two separate terminal windows** from the project root.
 
 ### 1. Configure and start the backend
-
-In PowerShell:
 
 ```powershell
 cd backend
@@ -63,37 +161,48 @@ npm install
 Copy-Item .env.example .env
 ```
 
-Edit `backend/.env` and set a unique `SESSION_SECRET` (at least 32 characters for production), and update `MONGODB_URI` if MongoDB is not listening at the local default. For a random development secret, run this from a terminal:
+Edit `backend/.env` and set:
+
+| Variable | Description |
+|---|---|
+| `PORT` | API port (default `5000`) |
+| `NODE_ENV` | `development` or `production` |
+| `MONGODB_URI` | MongoDB connection string (default `mongodb://127.0.0.1:27017/ceg-dev-hub`) |
+| `SESSION_SECRET` | At least 32-character random string — **required** |
+| `CORS_ORIGIN` | Frontend origin (default `http://localhost:5173`) |
+
+Generate a random development secret:
 
 ```powershell
 node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"
 ```
 
-Paste the generated value into `SESSION_SECRET` in `backend/.env`. Then start the API:
+Paste the output into `SESSION_SECRET` in `backend/.env`, then start the API:
 
 ```powershell
 npm run dev
 ```
 
-The API listens at `http://localhost:5000` by default. It must be able to connect to MongoDB before it starts listening.
+The API listens at `http://localhost:5000`. It must be able to connect to MongoDB before it starts listening.
 
-### 2. Seed the Admin User
-
-To provision or reset the platform administrator account, run:
+### 2. Seed the admin user
 
 ```powershell
 npm run seed:admin
 ```
 
-This creates or updates the admin user in MongoDB:
-- **Username / Email:** `devhubadmin`
-- **Password:** `devhubadmin@123`
-- **Role:** `ADMIN`
-- **Admin Portal URL:** `http://localhost:5173/admin/login`
+This creates or resets the platform administrator account:
+
+| Field | Value |
+|---|---|
+| Email | `devhubadmin` |
+| Password | `devhubadmin@123` |
+| Role | `ADMIN` |
+| Admin portal | `http://localhost:5173/admin/login` |
 
 ### 3. Start the frontend
 
-In a second PowerShell terminal, from the project root:
+In a second terminal, from the project root:
 
 ```powershell
 cd frontend
@@ -101,31 +210,41 @@ npm install
 npm run dev
 ```
 
-Open `http://localhost:5173`. By default, the frontend calls the API at `http://localhost:5000`. To use a different API origin, set `VITE_API_BASE_URL` in a frontend `.env` file before starting Vite, and set the matching allowed origin in `backend/.env` as `CORS_ORIGIN`.
+Open `http://localhost:5173`. The frontend calls the API at `http://localhost:5000` by default.
 
-The backend environment variables and defaults are documented in [`backend/.env.example`](backend/.env.example). Never commit `.env` files or production credentials.
+To use a different API origin, set `VITE_API_BASE_URL` in `frontend/.env` before starting Vite, and set the matching allowed origin in `backend/.env` as `CORS_ORIGIN`.
+
+> Never commit `.env` files or production credentials.
 
 ## Build
-
-Run each build from its application directory:
 
 ```powershell
 # Backend
 cd backend
-npm run build
+npm run build        # outputs to backend/dist/
 
-# Frontend (from the project root after the backend command)
-cd ..\frontend
-npm run build
+# Frontend (new terminal from project root)
+cd frontend
+npm run build        # outputs to frontend/dist/
 ```
 
-The frontend production build is written to `frontend/dist`; the backend build is written to `backend/dist`.
+## Frontend Routes
 
-## API entry points
-
-- API information: `GET http://localhost:5000/api/v1`
-- Health checks: `GET http://localhost:5000/api/v1/health`
-- Auth CSRF token: `GET http://localhost:5000/api/v1/auth/csrf`
-- OpenAPI contract: [`backend/openapi.yaml`](backend/openapi.yaml)
-
-Student write requests use the session-based CSRF token. The frontend API client handles session credentials and CSRF token acquisition for supported flows.
+| Route | Access | Description |
+|---|---|---|
+| `/` | Public | Landing page |
+| `/login` | Public | Student login |
+| `/register` | Public | Student registration |
+| `/forgot-password` | Public | Request password reset email |
+| `/reset-password` | Public | Set new password via token |
+| `/rankings` | Public | Public hackathon leaderboard |
+| `/admin/login` | Public | Admin login |
+| `/hackathons` | Authenticated | Hackathon directory |
+| `/hackathons/:slug` | Authenticated | Hackathon detail |
+| `/dashboard` | Authenticated | Student dashboard |
+| `/bookmarks` | Authenticated | Saved hackathons |
+| `/notifications` | Authenticated | In-app notifications |
+| `/participations` | Authenticated | Participation log |
+| `/achievements` | Authenticated | Earned achievements |
+| `/teammates` | Authenticated | Teammate discovery |
+| `/admin` | Admin only | Admin panel |
