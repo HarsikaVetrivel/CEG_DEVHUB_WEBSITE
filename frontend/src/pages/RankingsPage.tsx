@@ -11,7 +11,7 @@ type LeaderboardEntry = {
   wins: number;
   podiums: number;
   user: { fullName: string; course: string | null; yearOfStudy: number | null; interestedDomains: string[] };
-  achievements: { achievementKey: string }[];
+
   /** Snapshot of the student's latest win verification status from participation docs */
   topVerificationStatus?: 'UNVERIFIED' | 'VERIFIED' | 'REJECTED' | null;
 };
@@ -63,8 +63,9 @@ export function RankingsPage() {
         <h1 className="mb-1 mt-2 text-3xl font-black text-white">Leaderboard</h1>
         <p className="mb-2 text-sm text-muted">{total} students ranked</p>
         <p className="mb-6 rounded-xl border border-border bg-card/60 px-4 py-2.5 text-xs text-muted">
-          Rankings include all students who have marked themselves as participating in any hackathon.
-          Students who complete hackathons and record outcomes rank higher.
+          <strong>By completions</strong> — ranks students who have marked at least one hackathon as completed, ordered by most completions then most wins.
+          {' '}<strong>By wins</strong> — ranks only students with at least one verified podium win.
+          Students must complete a hackathon before appearing on the leaderboard.
         </p>
 
         {/* Filters */}
@@ -102,7 +103,14 @@ export function RankingsPage() {
         ) : items.length === 0 ? (
           <div className="rounded-[28px] border border-border bg-card py-20 text-center">
             <p className="text-4xl">📊</p>
-            <p className="mt-4 text-muted">No rankings yet. Be the first to complete a hackathon!</p>
+            <p className="mt-4 font-semibold text-white">
+              {sort === 'wins' ? 'No verified wins yet' : 'No completions yet'}
+            </p>
+            <p className="mt-2 text-sm text-muted">
+              {sort === 'wins'
+                ? 'Win a hackathon and have it verified by an admin to appear here.'
+                : 'Complete a hackathon and mark it as completed to appear on the leaderboard.'}
+            </p>
           </div>
         ) : (
           <div className="overflow-hidden rounded-[28px] border border-border bg-card">
@@ -111,7 +119,7 @@ export function RankingsPage() {
                 <tr className="border-b border-border text-left text-xs uppercase tracking-[0.15em] text-muted">
                   <th className="px-4 py-3 w-12">Rank</th>
                   <th className="px-4 py-3">Student</th>
-                  <th className="hidden px-4 py-3 sm:table-cell">Badges</th>
+
                   <th className="px-4 py-3 text-right">Joined</th>
                   <th className="px-4 py-3 text-right">Completed</th>
                   <th className="px-4 py-3 text-right">Wins</th>
@@ -133,14 +141,7 @@ export function RankingsPage() {
                           {[entry.user.course, entry.user.yearOfStudy ? `Year ${entry.user.yearOfStudy}` : null].filter(Boolean).join(' · ')}
                         </p>
                       </td>
-                      <td className="hidden px-4 py-3 sm:table-cell">
-                        <div className="flex flex-wrap gap-1">
-                          {entry.achievements.slice(0, 4).map((a) => {
-                            const icons: Record<string, string> = { FIRST_HACKATHON:'🎯', FIVE_HACKATHONS:'⚡', TEN_HACKATHONS:'🏅', FIRST_WIN:'🥇', THREE_WINS:'🏆', PODIUM_3:'🎖️', TEAM_PLAYER:'🤝', STREAK_3:'🔥' };
-                            return <span key={a.achievementKey} title={a.achievementKey}>{icons[a.achievementKey] ?? '🏅'}</span>;
-                          })}
-                        </div>
-                      </td>
+
                       <td className="px-4 py-3 text-right text-sm text-muted">{entry.participations}</td>
                       <td className="px-4 py-3 text-right font-semibold text-white">{entry.completions}</td>
                       <td className="px-4 py-3 text-right font-semibold">

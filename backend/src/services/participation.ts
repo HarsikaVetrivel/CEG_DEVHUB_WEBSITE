@@ -171,6 +171,13 @@ export const getLeaderboard = async (sort: 'completions' | 'wins', domain: strin
   const isVerifiedWinner   = { $and: [{ $eq: ['$outcome', 'WINNER'] },  { $eq: ['$verificationStatus', 'VERIFIED'] }] };
   const isVerifiedPodium   = { $and: [{ $in: ['$outcome', ['WINNER', 'RUNNER_UP', 'FINALIST']] }, { $eq: ['$verificationStatus', 'VERIFIED'] }] };
 
+  // Minimum threshold: for "completions" sort, only students who completed ≥1 hackathon appear.
+  // For "wins" sort, only students with ≥1 verified win appear.
+  // This prevents students who merely registered (but never finished) from occupying top ranks.
+  const minimumFilter = sort === 'wins'
+    ? { wins: { $gt: 0 } }
+    : { completions: { $gt: 0 } };
+
   const pipeline: mongoose.PipelineStage[] = [
     { $match: participationMatch },
     { $group: {
@@ -190,6 +197,8 @@ export const getLeaderboard = async (sort: 'completions' | 'wins', domain: strin
         ],
       } },
     } },
+    // ── Only rank students who meet the minimum activity threshold ──────────
+    { $match: minimumFilter },
     { $sort: sort === 'wins'
       ? { wins: -1, completions: -1, participations: -1 } as any
       : { completions: -1, wins: -1, participations: -1 } as any },
@@ -199,8 +208,6 @@ export const getLeaderboard = async (sort: 'completions' | 'wins', domain: strin
         { $lookup: { from: 'users', localField: '_id', foreignField: '_id', as: 'user',
             pipeline: [{ $project: { fullName: 1, course: 1, yearOfStudy: 1, interestedDomains: 1 } }] } },
         { $unwind: '$user' },
-        { $lookup: { from: 'userachievements', localField: '_id', foreignField: 'userId', as: 'achievements',
-            pipeline: [{ $project: { achievementKey: 1 } }] } },
         // topVerificationStatus: VERIFIED if wins>0, UNVERIFIED if pending, else null
         { $addFields: {
           topVerificationStatus: {
