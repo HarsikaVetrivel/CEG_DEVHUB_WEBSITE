@@ -10,22 +10,22 @@
    e.g.  bg-primary/20  →  background: rgb(var(--color-primary) / 0.2)
 ───────────────────────────────────────────────────────────────── */
 :root {
-  /* Core palette */
-  --color-bg:        7 8 20;           /* #070814 — near-black indigo */
-  --color-panel:     11 14 33;         /* #0B0E21 */
-  --color-card:      16 20 50;         /* #101432 */
-  --color-border:    38 46 100;        /* #262E64 */
-  --color-primary:   124 58 237;       /* #7C3AED — vibrant violet */
-  --color-highlight: 196 181 253;      /* #C4B5FD — soft lavender */
-  --color-text:      241 245 249;      /* #F1F5F9 */
-  --color-muted:     148 163 184;      /* #94A3B8 */
+  /* Core palette — deep forest / emerald */
+  --color-bg:        4 12 8;            /* #040C08 — near-black forest */
+  --color-panel:     6 18 12;           /* #06120C */
+  --color-card:      9 26 16;           /* #091A10 */
+  --color-border:    20 60 36;          /* #143C24 */
+  --color-primary:   16 185 129;        /* #10B981 — vibrant emerald */
+  --color-highlight: 110 231 183;       /* #6EE7B7 — soft mint */
+  --color-text:      236 253 245;       /* #ECFDF5 — near-white mint tint */
+  --color-muted:     107 173 133;       /* #6BAD85 — muted sage */
 
   /* Gradients / shadows */
-  --gradient-from:       #070814;
-  --gradient-to:         #0B0E21;
-  --gradient-radial:     rgba(124, 58, 237, 0.20);
-  --shadow-glow:         0 0 0 1px rgba(124, 58, 237, 0.25), 0 20px 50px rgba(4, 6, 18, 0.70);
-  --hero-card-gradient:  radial-gradient(circle at top, rgba(124,58,237,0.25), rgba(7,8,20,0.92) 55%);
+  --gradient-from:       #040C08;
+  --gradient-to:         #06120C;
+  --gradient-radial:     rgba(16, 185, 129, 0.18);
+  --shadow-glow:         0 0 0 1px rgba(16, 185, 129, 0.22), 0 20px 50px rgba(2, 8, 4, 0.75);
+  --hero-card-gradient:  radial-gradient(circle at top, rgba(16,185,129,0.22), rgba(4,12,8,0.94) 55%);
 
   /* Misc */
   color-scheme: dark;
@@ -42,20 +42,20 @@
    LIGHT THEME — applied via  html.light
 ───────────────────────────────────────────────────────────────── */
 html.light {
-  --color-bg:        246 244 255;      /* #F6F4FF — faint violet tint */
-  --color-panel:     255 255 255;      /* #FFFFFF */
-  --color-card:      237 233 254;      /* #EDE9FE */
-  --color-border:    196 181 253;      /* #C4B5FD */
-  --color-primary:   109 40 217;       /* #6D28D9 — slightly deeper for light bg */
-  --color-highlight: 76 29 149;        /* #4C1D95 — dark violet for readable text */
-  --color-text:      22 18 60;         /* #16123C — very dark indigo, great contrast */
-  --color-muted:     88 99 120;        /* #586378 — mid-slate */
+  --color-bg:        240 253 244;       /* #F0FDF4 — faint mint */
+  --color-panel:     255 255 255;       /* #FFFFFF */
+  --color-card:      209 250 229;       /* #D1FAE5 */
+  --color-border:    110 231 183;       /* #6EE7B7 */
+  --color-primary:   5 150 105;         /* #059669 — deeper emerald for light bg */
+  --color-highlight: 4 120 87;          /* #047857 — forest green for readable text */
+  --color-text:      2 44 34;           /* #022C22 — very dark forest green */
+  --color-muted:     52 100 72;         /* #346448 */
 
-  --gradient-from:       #F6F4FF;
-  --gradient-to:         #EDE9FE;
-  --gradient-radial:     rgba(109, 40, 217, 0.10);
-  --shadow-glow:         0 0 0 1px rgba(109, 40, 217, 0.18), 0 12px 40px rgba(109, 40, 217, 0.12);
-  --hero-card-gradient:  radial-gradient(circle at top, rgba(109,40,217,0.14), rgba(246,244,255,0.95) 55%);
+  --gradient-from:       #F0FDF4;
+  --gradient-to:         #D1FAE5;
+  --gradient-radial:     rgba(5, 150, 105, 0.12);
+  --shadow-glow:         0 0 0 1px rgba(5, 150, 105, 0.20), 0 12px 40px rgba(5, 150, 105, 0.14);
+  --hero-card-gradient:  radial-gradient(circle at top, rgba(5,150,105,0.16), rgba(240,253,244,0.96) 55%);
 
   color-scheme: light;
 }
@@ -103,7 +103,8 @@ body {
   color: rgb(var(--color-text));
   background-color: rgb(var(--color-bg));
   background-image:
-    radial-gradient(circle at 50% 0%, var(--gradient-radial), transparent 30%),
+    radial-gradient(ellipse 80% 50% at 50% -5%, var(--gradient-radial), transparent 60%),
+    radial-gradient(ellipse 40% 30% at 85% 80%, rgba(5, 150, 105, 0.08), transparent 50%),
     linear-gradient(180deg, var(--gradient-from) 0%, var(--gradient-to) 100%);
   transition:
     background-color 350ms ease,
@@ -139,6 +140,53 @@ select {
   background: var(--hero-card-gradient);
 }
 
+/* Stronger glow on interactive cards */
+.card-hover-glow {
+  transition: box-shadow 300ms ease, transform 300ms ease, border-color 300ms ease;
+}
+.card-hover-glow:hover {
+  box-shadow: 0 0 0 1px rgba(16, 185, 129, 0.35), 0 24px 60px rgba(2, 8, 4, 0.60);
+}
+
+/* Animated gradient text for headings */
+.text-gradient {
+  background: linear-gradient(135deg, rgb(var(--color-primary)), rgb(var(--color-highlight)), rgb(var(--color-primary)));
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: gradient-shift 4s ease infinite;
+}
+
+@keyframes gradient-shift {
+  0%   { background-position: 0% center; }
+  50%  { background-position: 100% center; }
+  100% { background-position: 0% center; }
+}
+
+/* Shimmer loading skeleton */
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background: rgb(var(--color-card));
+}
+.skeleton::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(16, 185, 129, 0.06) 50%,
+    transparent 100%
+  );
+  animation: shimmer 1.8s ease infinite;
+}
+@keyframes shimmer {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
 /* ─────────────────────────────────────────────────────────────────
    FORM INPUTS
 ───────────────────────────────────────────────────────────────── */
@@ -159,7 +207,7 @@ select {
 
 .filter-input:focus-visible {
   border-color: rgb(var(--color-primary));
-  box-shadow: 0 0 0 3px rgb(var(--color-primary) / 0.20);
+  box-shadow: 0 0 0 3px rgb(var(--color-primary) / 0.18);
 }
 
 /* ─────────────────────────────────────────────────────────────────

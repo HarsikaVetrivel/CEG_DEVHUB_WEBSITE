@@ -22,7 +22,7 @@ type Participation = {
 
 const STATUS_COLORS: Record<string, string> = {
   REGISTERED:    'bg-blue-500/15 text-blue-300 border-blue-500/30',
-  PARTICIPATING: 'bg-purple-500/15 text-purple-300 border-purple-500/30',
+  PARTICIPATING: 'bg-teal-500/15 text-teal-300 border-teal-500/30',
   COMPLETED:     'bg-emerald-500/15 text-emerald-300 border-emerald-500/30',
   WITHDREW:      'bg-slate-500/15 text-slate-400 border-slate-500/30',
 };

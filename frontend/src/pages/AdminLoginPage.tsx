@@ -101,12 +101,13 @@ export function AdminLoginPage() {
   };
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#09090f] px-4">
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#040C08] px-4">
 
       {/* Background radial glow */}
       <div className="pointer-events-none absolute inset-0">
-        <div className="absolute left-1/2 top-1/4 h-[480px] w-[480px] -translate-x-1/2 rounded-full bg-rose-900/20 blur-[120px]" />
-        <div className="absolute left-1/4 top-2/3 h-[300px] w-[300px] rounded-full bg-violet-900/15 blur-[100px]" />
+        <div className="absolute left-1/2 top-1/4 h-[520px] w-[520px] -translate-x-1/2 rounded-full bg-emerald-900/25 blur-[130px]" />
+        <div className="absolute left-1/4 top-2/3 h-[320px] w-[320px] rounded-full bg-teal-900/15 blur-[100px]" />
+        <div className="absolute right-1/4 top-1/3 h-[200px] w-[200px] rounded-full bg-emerald-800/10 blur-[80px]" />
       </div>
 
       {/* Grid texture overlay */}
@@ -133,15 +134,15 @@ export function AdminLoginPage() {
 
           {/* Logo + title */}
           <div className="mb-8 flex flex-col items-center gap-4">
-            <div className="relative flex h-16 w-16 items-center justify-center rounded-2xl border border-rose-500/30 bg-rose-500/10 shadow-lg shadow-rose-900/30">
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="text-rose-400" aria-hidden="true">
+            <div className="relative flex h-16 w-16 items-center justify-center rounded-2xl border border-emerald-500/30 bg-emerald-500/10 shadow-lg shadow-emerald-900/30">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="text-emerald-400" aria-hidden="true">
                 <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
                 <path d="M7 11V7a5 5 0 0 1 10 0v4" />
               </svg>
-              <span className="absolute -right-1 -top-1 h-3 w-3 rounded-full bg-rose-500 ring-2 ring-[#09090f]" />
+              <span className="absolute -right-1 -top-1 h-3 w-3 rounded-full bg-emerald-500 ring-2 ring-[#040C08]" />
             </div>
             <div className="text-center">
-              <p className="text-xs font-semibold uppercase tracking-[0.25em] text-rose-400">
+              <p className="text-xs font-semibold uppercase tracking-[0.25em] text-emerald-400">
                 Administrator Portal
               </p>
               <h1 className="mt-1.5 text-2xl font-black text-white">Admin Sign In</h1>
@@ -169,7 +170,7 @@ export function AdminLoginPage() {
                 autoComplete="username"
                 required
                 placeholder="devhubadmin"
-                className="w-full rounded-xl border border-white/10 bg-white/[0.06] px-4 py-3 text-sm text-white placeholder-zinc-600 outline-none transition focus:border-rose-500/60 focus:bg-white/[0.08] focus:ring-2 focus:ring-rose-500/20"
+                className="w-full rounded-xl border border-white/10 bg-white/[0.06] px-4 py-3 text-sm text-white placeholder-zinc-600 outline-none transition focus:border-emerald-500/60 focus:bg-white/[0.08] focus:ring-2 focus:ring-emerald-500/20"
               />
             </label>
 
@@ -183,7 +184,7 @@ export function AdminLoginPage() {
                 required
                 minLength={8}
                 placeholder="••••••••"
-                className="w-full rounded-xl border border-white/10 bg-white/[0.06] px-4 py-3 pr-10 text-sm text-white placeholder-zinc-600 outline-none transition focus:border-rose-500/60 focus:bg-white/[0.08] focus:ring-2 focus:ring-rose-500/20"
+                className="w-full rounded-xl border border-white/10 bg-white/[0.06] px-4 py-3 pr-10 text-sm text-white placeholder-zinc-600 outline-none transition focus:border-emerald-500/60 focus:bg-white/[0.08] focus:ring-2 focus:ring-emerald-500/20"
               />
             </label>
 
@@ -197,7 +198,7 @@ export function AdminLoginPage() {
             <button
               type="submit"
               disabled={busy}
-              className="mt-2 w-full rounded-xl bg-rose-600 px-5 py-3 text-sm font-bold tracking-wide text-white transition hover:bg-rose-500 disabled:opacity-50"
+              className="mt-2 w-full rounded-xl bg-emerald-600 px-5 py-3 text-sm font-bold tracking-wide text-white shadow-lg shadow-emerald-900/40 transition hover:bg-emerald-500 disabled:opacity-50"
             >
               {busy ? 'Verifying…' : 'Sign in to Admin Portal'}
             </button>
