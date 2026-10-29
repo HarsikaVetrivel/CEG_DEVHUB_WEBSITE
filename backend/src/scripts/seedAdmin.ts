@@ -7,11 +7,18 @@ import User from '../models/User.js';
 
 async function seedAdmin() {
   try {
+    const username = process.env.ADMIN_EMAIL?.trim();
+    const plainPassword = process.env.ADMIN_PASSWORD;
+    if (!username || !plainPassword) {
+      throw new Error('Set ADMIN_EMAIL and ADMIN_PASSWORD before running the admin seed script.');
+    }
+    if (plainPassword.length < 12) {
+      throw new Error('ADMIN_PASSWORD must be at least 12 characters long.');
+    }
+
     console.log('Connecting to MongoDB...');
     await connectDatabase();
 
-    const username = 'devhubadmin';
-    const plainPassword = 'devhubadmin@123';
     const passwordHash = await bcrypt.hash(plainPassword, 12);
 
     // Upsert admin user
