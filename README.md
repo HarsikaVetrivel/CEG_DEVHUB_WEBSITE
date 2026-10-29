@@ -30,6 +30,12 @@ CEG_DEVHUB_WEBSITE/
 │   │   ├── validators/      # Zod schemas
 │   │   ├── app.ts
 │   │   └── index.ts
+│   ├── tests/               # Vitest integration + unit tests
+│   │   ├── helpers/         # db.ts, request.ts, hackathon.ts
+│   │   ├── auth.test.ts
+│   │   ├── hackathons.test.ts
+│   │   ├── dashboard.test.ts
+│   │   └── reminders.test.ts
 │   ├── .env.example
 │   └── openapi.yaml
 └── frontend/
@@ -136,6 +142,10 @@ The following items were previously listed as gaps or incomplete and have since 
 | Reminder email delivery not wired. | `processDueReminders` in `services/reminders.ts` calls `sendReminderEmail` (non-blocking) after writing the in-app notification. SMTP delivery activates automatically when `SMTP_HOST` is configured. |
 | Reverse-proxy trust not configured. | `app.ts` now calls `app.set('trust proxy', 1)` when `NODE_ENV === 'production'`, so `req.ip` correctly reflects the real client IP behind Nginx/Caddy/Railway/Render and rate limiting works correctly. |
 | No automated test coverage. | 34 integration and unit tests added under `backend/tests/` using Vitest + Supertest + mongodb-memory-server. Covers auth (register, login, logout, CSRF), hackathon discovery, dashboard (participations, bookmarks), and reminder scheduling. Run with `npm test`. |
+| Achievement win/podium counts included unverified claims and withdrawn participations. | `checkAndAwardAchievements` now requires `verificationStatus: 'VERIFIED'` and `status: { $ne: 'WITHDREW' }` for win/podium counts, matching leaderboard and dashboard logic. |
+| `PATCH /participations/:id` accepted `status: 'WITHDREW'`, bypassing the withdraw flow. | `updateParticipation` now throws 400 if `status: 'WITHDREW'` is sent — the `DELETE /participations/:id` endpoint must be used for withdrawals. |
+| Notification `body` field missing from `/student/notifications` response. | Added `body` to the `.select()` in `getNotifications` so notification text is properly returned to the frontend. |
+| Deleting a hackathon left orphaned Participations, Bookmarks, and ReminderDeliveries. | `adminDeleteHackathon` now cascades `deleteMany` across all three collections after removing the hackathon document. |
 
 ## Known Gaps & Recommended Fixes
 
