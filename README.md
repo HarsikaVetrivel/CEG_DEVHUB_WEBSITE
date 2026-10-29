@@ -122,10 +122,7 @@ Full contract: [`backend/openapi.yaml`](backend/openapi.yaml)
 ## Not Implemented Yet
 
 - Email verification on registration (college email policy enforcement)
-- Push / email delivery for reminder notifications (backend email service exists but is not wired to reminders)
-- Automated test suites (unit + integration)
 - CI/CD and deployment configuration
-- Reverse-proxy trust configuration for production
 
 ## Already Resolved
 
@@ -136,17 +133,17 @@ The following items were previously listed as gaps or incomplete and have since 
 | No dedicated rate limit on auth routes. | A stricter `authRateLimit` middleware (20 requests/IP/hour) is applied to the entire `/api/v1/auth` prefix in `app.ts`. GET requests (CSRF token fetch) are skipped. |
 | Reminder preference changes do not reconcile already-created reminders. | `updateReminderPreferences` in `services/student.ts` calls `syncAllUserReminders` immediately after saving, which cancels stale `ReminderDelivery` records and upserts new ones for all bookmarks. |
 | Home page uses demo data; database may have no published hackathons. | `Landing.tsx` fetches live hackathon data from `/api/v1/hackathons` and platform stats from `/api/v1/stats`. Empty states are shown when no hackathons are published yet. |
+| Reminder email delivery not wired. | `processDueReminders` in `services/reminders.ts` calls `sendReminderEmail` (non-blocking) after writing the in-app notification. SMTP delivery activates automatically when `SMTP_HOST` is configured. |
+| Reverse-proxy trust not configured. | `app.ts` now calls `app.set('trust proxy', 1)` when `NODE_ENV === 'production'`, so `req.ip` correctly reflects the real client IP behind Nginx/Caddy/Railway/Render and rate limiting works correctly. |
+| No automated test coverage. | 34 integration and unit tests added under `backend/tests/` using Vitest + Supertest + mongodb-memory-server. Covers auth (register, login, logout, CSRF), hackathon discovery, dashboard (participations, bookmarks), and reminder scheduling. Run with `npm test`. |
 
 ## Known Gaps & Recommended Fixes
 
 | Gap | Recommended fix |
 |---|---|
-| `SESSION_SECRET` has a known dev fallback (`'development-session-secret-change-me'`) that is only rejected in production when shorter than 32 characters. | Require a secret supplied through the environment in **all** environments; reject the known fallback string unconditionally; store a strong unique secret in a secret manager for production. |
 | No email ownership confirmation on registration. | Registration is already restricted to `@student.annauniv.edu` addresses (domain enforced in `validators/auth.ts`). What is missing is **ownership verification**: send a confirmation link to the inbox so only the real holder of that address can activate the account. |
-| Reverse-proxy trust is not configured. | Configure Express `trust proxy` to match the known proxy topology, then verify that secure cookies and client-IP rate limiting behave correctly in production. |
-| No automated test coverage. | Add unit/integration tests for auth, CSRF, hackathon discovery, dashboard actions, and reminder scheduling. |
 
-> **Do not deploy with the default session secret.** Email verification, external reminder delivery, and account recovery should not be assumed to work without additional wiring.
+> **Do not deploy without setting a strong `SESSION_SECRET`.** The server will refuse to start if the variable is missing, too short, or set to a known-insecure value. Email verification, external reminder delivery, and account recovery should not be assumed to work without additional wiring.
 
 ## Prerequisites
 

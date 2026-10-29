@@ -16,6 +16,14 @@ import statsRouter from './routes/stats.js';
 
 export const app = express();
 
+// Trust the first hop from the reverse proxy (Nginx, Caddy, Railway, Render, etc.)
+// This makes req.ip reflect the real client IP (from X-Forwarded-For) so that
+// rate limiting and secure cookies work correctly in production.
+// Only enable in production to avoid trusting spoofed headers in local dev.
+if (env.NODE_ENV === 'production') {
+  app.set('trust proxy', 1);
+}
+
 app.disable('x-powered-by');
 
 app.use(

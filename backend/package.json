@@ -8,7 +8,10 @@
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
     "seed:admin": "tsx src/scripts/seedAdmin.ts",
-    "seed:demo": "tsx src/scripts/seedDemoData.ts"
+    "seed:demo": "tsx src/scripts/seedDemoData.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
     "@types/nodemailer": "^8.0.2",
@@ -30,7 +33,11 @@
     "@types/express": "^5.0.0",
     "@types/express-session": "^1.19.0",
     "@types/node": "^22.10.2",
+    "@types/supertest": "^7.2.1",
+    "mongodb-memory-server": "^11.3.0",
+    "supertest": "^7.3.1",
     "tsx": "^4.19.2",
-    "typescript": "^5.7.3"
+    "typescript": "^5.7.3",
+    "vitest": "^4.1.12"
   }
 }

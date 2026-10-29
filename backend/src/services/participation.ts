@@ -19,8 +19,9 @@ async function checkAndAwardAchievements(
   const objectUserId = new mongoose.Types.ObjectId(userId);
   const [completedCount, winCount, podiumCount, registeredDates] = await Promise.all([
     Participation.countDocuments({ userId: objectUserId, status: 'COMPLETED' }),
-    Participation.countDocuments({ userId: objectUserId, outcome: 'WINNER' }),
-    Participation.countDocuments({ userId: objectUserId, outcome: { $in: ['WINNER', 'RUNNER_UP', 'FINALIST'] } }),
+    // Only count VERIFIED wins on non-withdrawn participations (matches leaderboard + dashboard)
+    Participation.countDocuments({ userId: objectUserId, status: { $ne: 'WITHDREW' }, outcome: 'WINNER', verificationStatus: 'VERIFIED' }),
+    Participation.countDocuments({ userId: objectUserId, status: { $ne: 'WITHDREW' }, outcome: { $in: ['WINNER', 'RUNNER_UP', 'FINALIST'] }, verificationStatus: 'VERIFIED' }),
     Participation.distinct('registeredAt', { userId: objectUserId }) as Promise<Date[]>,
   ]);
   const uniqueMonths = new Set(
@@ -58,10 +59,31 @@ async function checkAndAwardAchievements(
 export { checkAndAwardAchievements };
 
 export const createParticipation = async (userId: string, hackathonId: string, teamName?: string | null) => {
-  const hackathon = await Hackathon.findOne({ _id: hackathonId, listingStatus: 'PUBLISHED' }).select('_id name');
+  const hackathon = await Hackathon.findOne({ _id: hackathonId, listingStatus: 'PUBLISHED' }).select('_id name registrationDeadline');
   if (!hackathon) throw createError(404, 'Published hackathon not found.');
+
+  // Block if an active (non-withdrawn) participation already exists
   const existing = await Participation.findOne({ userId, hackathonId });
-  if (existing) throw createError(409, 'You are already registered for this hackathon.');
+  if (existing && existing.status !== 'WITHDREW') {
+    throw createError(409, 'You are already registered for this hackathon.');
+  }
+
+  // Prevent re-registration after the registration deadline has passed
+  if (hackathon.registrationDeadline && new Date() > new Date(hackathon.registrationDeadline)) {
+    throw createError(400, 'Registration deadline has passed.');
+  }
+
+  if (existing && existing.status === 'WITHDREW') {
+    // Re-activate the withdrawn record instead of creating a duplicate
+    const participation = await Participation.findOneAndUpdate(
+      { _id: existing._id },
+      { $set: { status: 'REGISTERED', teamName: teamName ?? null, registeredAt: new Date(),
+                outcome: null, proofUrl: null, verificationStatus: null, note: null, completedAt: null } },
+      { new: true },
+    );
+    return participation!.toObject();
+  }
+
   const participation = await Participation.create({ userId, hackathonId, teamName: teamName ?? null, status: 'REGISTERED', registeredAt: new Date() });
   return participation.toObject();
 };
@@ -93,6 +115,8 @@ export const updateParticipation = async (
   }
 
   const update: Record<string, unknown> = {};
+  // Prevent bypassing the proper withdraw flow — use DELETE /participations/:id instead
+  if (patch.status === 'WITHDREW') throw createError(400, "Use the withdraw action to withdraw from a hackathon.");
   if (patch.status !== undefined)    update['status']    = patch.status;
   if (patch.outcome !== undefined)   update['outcome']   = patch.outcome;
   if (patch.teamName !== undefined)  update['teamName']  = patch.teamName;
@@ -248,7 +272,8 @@ export const getParticipationSummary = async (userId: string) => {
   const [total, completed, wins, recentAchievements] = await Promise.all([
     Participation.countDocuments({ userId: objectUserId, status: { $ne: 'WITHDREW' } }),
     Participation.countDocuments({ userId: objectUserId, status: 'COMPLETED' }),
-    Participation.countDocuments({ userId: objectUserId, outcome: 'WINNER' }),
+    // Only count VERIFIED wins on non-withdrawn participations (matches leaderboard logic)
+    Participation.countDocuments({ userId: objectUserId, status: { $ne: 'WITHDREW' }, outcome: 'WINNER', verificationStatus: 'VERIFIED' }),
     UserAchievement.find({ userId: objectUserId }).sort({ earnedAt: -1 }).limit(5),
   ]);
   return { total, completed, wins, recentAchievements: recentAchievements.map((a) => ({ ...a.toObject(), meta: ACHIEVEMENT_META[a.achievementKey as AchievementKey] })) };

@@ -200,7 +200,7 @@ export const getNotifications = async (userId: string, page: number, limit: numb
       .sort({ createdAt: -1 })
       .skip((page - 1) * limit)
       .limit(limit)
-      .select('type title message hackathonId readAt createdAt')
+      .select('type title body message hackathonId readAt createdAt')
       .populate({ path: 'hackathonId', select: 'name slug' })
       .lean(),
     Notification.countDocuments({ userId }),

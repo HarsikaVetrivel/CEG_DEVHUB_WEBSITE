@@ -146,6 +146,19 @@ export const adminDeleteHackathon = async (id: string) => {
   if (!mongoose.Types.ObjectId.isValid(id)) throw createError(400, 'Invalid hackathon ID.');
   const result = await Hackathon.findByIdAndDelete(id);
   if (!result) throw createError(404, 'Hackathon not found.');
+
+  // Cascade: remove all related records so no orphaned data remains
+  const [Participation, Bookmark, ReminderDelivery] = await Promise.all([
+    import('../models/Participation.js').then((m) => m.default),
+    import('../models/Bookmark.js').then((m) => m.default),
+    import('../models/ReminderDelivery.js').then((m) => m.default),
+  ]);
+  await Promise.all([
+    Participation.deleteMany({ hackathonId: id }),
+    Bookmark.deleteMany({ hackathonId: id }),
+    ReminderDelivery.deleteMany({ hackathonId: id }),
+  ]);
+
   return { deleted: true };
 };
 

@@ -4,11 +4,35 @@ const getEnvList = (value?: string) =>
     .map((entry) => entry.trim())
     .filter(Boolean) ?? [];
 
-const nodeEnvironment = process.env.NODE_ENV ?? 'development';
-const sessionSecret = process.env.SESSION_SECRET ?? 'development-session-secret-change-me';
+const KNOWN_INSECURE_SECRETS = new Set([
+  'development-session-secret-change-me',
+  'changeme',
+  'secret',
+  'sessionsecret',
+]);
 
-if (nodeEnvironment === 'production' && sessionSecret.length < 32) {
-  throw new Error('SESSION_SECRET must be at least 32 characters in production.');
+const nodeEnvironment = process.env.NODE_ENV ?? 'development';
+const sessionSecret = process.env.SESSION_SECRET;
+
+if (!sessionSecret) {
+  throw new Error(
+    'SESSION_SECRET environment variable is not set. ' +
+    'Generate a strong secret with: node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))" ' +
+    'and set it in your .env file.',
+  );
+}
+
+if (KNOWN_INSECURE_SECRETS.has(sessionSecret.toLowerCase().trim())) {
+  throw new Error(
+    'SESSION_SECRET is set to a known insecure value. ' +
+    'Generate a strong secret with: node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"',
+  );
+}
+
+if (sessionSecret.length < 32) {
+  throw new Error(
+    `SESSION_SECRET must be at least 32 characters long (currently ${sessionSecret.length}).`,
+  );
 }
 
 export const env = {

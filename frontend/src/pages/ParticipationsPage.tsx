@@ -169,12 +169,12 @@ export function ParticipationsPage() {
                   </div>
                   <div className="flex flex-wrap gap-2">
                     <span className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${STATUS_COLORS[p.status]}`}>{p.status}</span>
-                    {p.outcome && (
+                    {p.outcome && p.status !== 'WITHDREW' && (
                       <span className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${OUTCOME_COLORS[p.outcome]}`}>
                         {OUTCOME_ICONS[p.outcome]} {p.outcome.replace('_', ' ')}
                       </span>
                     )}
-                    {p.verificationStatus && (
+                    {p.verificationStatus && p.status !== 'WITHDREW' && (
                       <span className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${VERIFY_COLORS[p.verificationStatus]}`}>
                         {VERIFY_BADGE[p.verificationStatus]}
                       </span>
@@ -186,13 +186,13 @@ export function ParticipationsPage() {
                   Registered {fmt(p.registeredAt)}{p.completedAt && ` · Completed ${fmt(p.completedAt)}`}
                 </p>
                 {p.note && <p className="mt-1 text-sm text-muted italic">"{p.note}"</p>}
-                {p.proofUrl && (
+                {p.proofUrl && p.status !== 'WITHDREW' && (
                   <a href={p.proofUrl} target="_blank" rel="noopener noreferrer"
                     className="mt-1 block text-xs text-highlight hover:underline truncate max-w-xs">
                     🔗 {p.proofUrl}
                   </a>
                 )}
-                {p.verificationStatus === 'REJECTED' && (
+                {p.verificationStatus === 'REJECTED' && p.status !== 'WITHDREW' && (
                   <p className="mt-2 rounded-xl border border-rose-500/20 bg-rose-500/5 px-3 py-2 text-xs text-rose-300">
                     Your claim was not verified. Update your proof URL and save again to re-submit for review.
                   </p>
