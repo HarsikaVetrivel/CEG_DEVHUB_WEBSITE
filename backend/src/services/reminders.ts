@@ -223,9 +223,12 @@ export const processDueReminders = async () => {
           void sendReminderEmail(
             (user as any).email as string,
             (user as any).fullName as string,
-            hackathon.name,
-            reminder.daysBefore,
-            hackathon.registrationUrl ?? `${process.env['APP_URL'] ?? ''}/hackathons`,
+            `Registration reminder: ${hackathon.name}`,
+            `Registration for ${hackathon.name} closes in ${reminder.daysBefore} ${
+              reminder.daysBefore === 1 ? 'day' : 'days'
+            }.\n\nRegister here: ${
+              hackathon.registrationUrl ?? `${process.env['APP_URL'] ?? ''}/hackathons`
+            }`,
           ).catch((emailErr: unknown) => {
             console.error('Reminder email delivery failed (notification was still created):', emailErr);
           });
