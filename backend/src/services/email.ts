@@ -1,171 +1,201 @@
-import nodemailer from 'nodemailer';
+
 import { env } from '../config/env.js';
 
+interface BrevoEmailOptions {
+  toEmail: string;
+  toName: string;
+  subject: string;
+  textContent: string;
+  htmlContent: string;
+}
+
 /**
- * Sends a password reset email.
- *
- * - If SMTP_HOST is set: uses real SMTP (configure SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM).
- * - Otherwise (dev mode): prints the reset URL directly to the console — no network call needed.
+ * Common function to send emails through Brevo API.
+ */
+async function sendBrevoEmail({
+  toEmail,
+  toName,
+  subject,
+  textContent,
+  htmlContent,
+}: BrevoEmailOptions): Promise<void> {
+  if (!env.BREVO_API_KEY) {
+    throw new Error('BREVO_API_KEY is not configured');
+  }
+
+  if (!env.EMAIL_FROM) {
+    throw new Error('EMAIL_FROM is not configured');
+  }
+
+  const response = await fetch(
+    'https://api.brevo.com/v3/smtp/email',
+    {
+      method: 'POST',
+      headers: {
+        accept: 'application/json',
+        'api-key': env.BREVO_API_KEY,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        sender: {
+          name: 'CEG DEV HUB',
+          email: env.EMAIL_FROM,
+        },
+        to: [
+          {
+            email: toEmail,
+            name: toName,
+          },
+        ],
+        subject,
+        textContent,
+        htmlContent,
+      }),
+    },
+  );
+
+  if (!response.ok) {
+    const errorDetails = await response.text();
+
+    // Never log API keys, reset tokens, or email credentials.
+    console.error(
+      '[Brevo Email Error]',
+      response.status,
+      errorDetails,
+    );
+
+    throw new Error(
+      `Brevo email request failed with status ${response.status}`,
+    );
+  }
+}
+
+/**
+ * Sends a password-reset email.
  */
 export async function sendPasswordResetEmail(
   toEmail: string,
   toName: string,
   rawToken: string,
 ): Promise<void> {
-  const resetUrl = `${env.APP_URL}/reset-password?token=${encodeURIComponent(rawToken)}`;
+  const appUrl = env.APP_URL.replace(/\/+$/, '');
 
-  // ── Real SMTP delivery ─────────────────────────────────────────────
-  if (env.SMTP_HOST) {
-    const transport = nodemailer.createTransport({
-      host: env.SMTP_HOST,
-      port: env.SMTP_PORT,
-      secure: env.SMTP_SECURE,
-      auth: {
-        user: env.SMTP_USER,
-        pass: env.SMTP_PASS,
-      },
-    });
+  const resetUrl =
+    `${appUrl}/reset-password?token=${encodeURIComponent(rawToken)}`;
 
-    await transport.sendMail({
-      from: env.SMTP_FROM,
-      to: `${toName} <${toEmail}>`,
-      subject: 'Reset your CEG DEV HUB password',
-      text: `
-Hi ${toName},
+  const textContent = `
+Hello ${toName},
 
-You requested a password reset for your CEG DEV HUB account.
+We received a request to reset your CEG DEV HUB password.
 
-Click the link below (valid for 1 hour):
+Click the link below to reset your password:
+
 ${resetUrl}
 
-If you did not request this, you can safely ignore this email.
+This link expires in 1 hour.
 
-– CEG DEV HUB Team
-      `.trim(),
-      html: `
+If you did not request this, you can ignore this email.
+
+Regards,
+CEG DEV HUB Team
+`;
+
+  const htmlContent = `
 <!DOCTYPE html>
 <html>
-<head><meta charset="utf-8"></head>
-<body style="font-family:system-ui,sans-serif;background:#0f0f14;color:#e2e8f0;padding:32px;margin:0">
-  <div style="max-width:480px;margin:0 auto;background:#1a1a2e;border:1px solid #2d2d44;border-radius:16px;padding:32px">
-    <h1 style="margin:0 0 8px;font-size:20px;color:#fff">&lt;/&gt; CEG DEV HUB</h1>
-    <p style="color:#94a3b8;margin:0 0 24px;font-size:13px">Password Reset Request</p>
-    <p style="margin:0 0 16px">Hi ${toName},</p>
-    <p style="margin:0 0 24px;color:#94a3b8">
-      You requested a password reset. Click the button below — this link is valid for <strong style="color:#e2e8f0">1 hour</strong>.
+  <body style="font-family: Arial, sans-serif; line-height: 1.6;">
+    <h2>CEG DEV HUB - Password Reset</h2>
+
+    <p>Hello ${toName},</p>
+
+    <p>
+      We received a request to reset your CEG DEV HUB password.
     </p>
-    <a href="${resetUrl}" style="display:inline-block;background:#6366f1;color:#fff;padding:12px 28px;border-radius:9999px;text-decoration:none;font-weight:600;font-size:14px">
-      Reset my password
-    </a>
-    <p style="margin:24px 0 0;font-size:12px;color:#64748b">
-      If you did not request this, you can safely ignore this email.<br>
-      This link expires in 1 hour and can only be used once.
+
+    <p>
+      Click the button below to reset your password:
     </p>
-  </div>
-</body>
+
+    <p>
+      <a
+        href="${resetUrl}"
+        style="
+          display: inline-block;
+          padding: 12px 20px;
+          background-color: #2563eb;
+          color: white;
+          text-decoration: none;
+          border-radius: 6px;
+        "
+      >
+        Reset Password
+      </a>
+    </p>
+
+    <p>This link expires in 1 hour.</p>
+
+    <p>
+      If you did not request this, you can safely ignore this email.
+    </p>
+
+    <p>Regards,<br />CEG DEV HUB Team</p>
+  </body>
 </html>
-      `.trim(),
-    });
+`;
 
-    return;
-  }
-
-  // ── Dev fallback: no network call — just log the link ─────────────
-  console.log('\n┌─────────────────────────────────────────────────────┐');
-  console.log('│         PASSWORD RESET (dev mode — no SMTP)         │');
-  console.log('├─────────────────────────────────────────────────────┤');
-  console.log(`│  To  : ${toEmail}`);
-  console.log(`│  Name: ${toName}`);
-  console.log('│');
-  console.log('│  Copy this link into your browser:');
-  console.log(`│  ${resetUrl}`);
-  console.log('│');
-  console.log('│  Link expires in 1 hour.');
-  console.log('└─────────────────────────────────────────────────────┘\n');
+  await sendBrevoEmail({
+    toEmail,
+    toName,
+    subject: 'Reset your CEG DEV HUB password',
+    textContent,
+    htmlContent,
+  });
 }
 
 /**
- * Sends a hackathon deadline reminder email.
+ * Sends a reminder email.
  *
- * - If SMTP_HOST is set: delivers via real SMTP.
- * - Otherwise (dev mode): logs reminder details to console.
+ * Parameters:
+ * toEmail  - Recipient email address
+ * toName   - Recipient name
+ * subject  - Reminder email subject
+ * message  - Reminder message
  */
 export async function sendReminderEmail(
   toEmail: string,
   toName: string,
-  hackathonName: string,
-  daysBefore: number,
-  registrationUrl: string,
+  subject: string,
+  message: string,
 ): Promise<void> {
-  const daysLabel = daysBefore === 1 ? '1 day' : `${daysBefore} days`;
-  const subject = `⏰ Reminder: ${hackathonName} registration closes in ${daysLabel}`;
+  const textContent = `
+Hello ${toName},
 
-  const textBody = `
-Hi ${toName},
+${message}
 
-This is a reminder that the registration deadline for ${hackathonName} is coming up in ${daysLabel}.
+Regards,
+CEG DEV HUB Team
+`;
 
-Register here: ${registrationUrl}
-
-You received this because you bookmarked this hackathon on CEG DEV HUB.
-To manage your reminder preferences, visit your profile settings.
-
-– CEG DEV HUB Team
-  `.trim();
-
-  const htmlBody = `
+  const htmlContent = `
 <!DOCTYPE html>
 <html>
-<head><meta charset="utf-8"></head>
-<body style="font-family:system-ui,sans-serif;background:#0f0f14;color:#e2e8f0;padding:32px;margin:0">
-  <div style="max-width:480px;margin:0 auto;background:#1a1a2e;border:1px solid #2d2d44;border-radius:16px;padding:32px">
-    <h1 style="margin:0 0 4px;font-size:20px;color:#fff">&lt;/&gt; CEG DEV HUB</h1>
-    <p style="color:#94a3b8;margin:0 0 24px;font-size:13px">Deadline Reminder</p>
-    <p style="margin:0 0 12px">Hi ${toName},</p>
-    <p style="margin:0 0 24px;color:#94a3b8">
-      The registration deadline for <strong style="color:#e2e8f0">${hackathonName}</strong>
-      is coming up in <strong style="color:#a78bfa">${daysLabel}</strong>.
-      Don't miss your chance to participate!
-    </p>
-    <a href="${registrationUrl}"
-       style="display:inline-block;background:#6366f1;color:#fff;padding:12px 28px;border-radius:9999px;text-decoration:none;font-weight:600;font-size:14px">
-      Register now →
-    </a>
-    <p style="margin:24px 0 0;font-size:12px;color:#64748b">
-      You received this because you bookmarked this hackathon.<br>
-      Manage reminders in your CEG DEV HUB profile settings.
-    </p>
-  </div>
-</body>
+  <body style="font-family: Arial, sans-serif; line-height: 1.6;">
+    <h2>CEG DEV HUB - Reminder</h2>
+
+    <p>Hello ${toName},</p>
+
+    <p>${message}</p>
+
+    <p>Regards,<br />CEG DEV HUB Team</p>
+  </body>
 </html>
-  `.trim();
+`;
 
-  // ── Real SMTP delivery ─────────────────────────────────────────────
-  if (env.SMTP_HOST) {
-    const transport = nodemailer.createTransport({
-      host: env.SMTP_HOST,
-      port: env.SMTP_PORT,
-      secure: env.SMTP_SECURE,
-      auth: { user: env.SMTP_USER, pass: env.SMTP_PASS },
-    });
-    await transport.sendMail({
-      from: env.SMTP_FROM,
-      to: `${toName} <${toEmail}>`,
-      subject,
-      text: textBody,
-      html: htmlBody,
-    });
-    return;
-  }
-
-  // ── Dev fallback ───────────────────────────────────────────────────
-  console.log('\n┌─────────────────────────────────────────────────────┐');
-  console.log('│       REMINDER EMAIL (dev mode — no SMTP)           │');
-  console.log('├─────────────────────────────────────────────────────┤');
-  console.log(`│  To      : ${toEmail}`);
-  console.log(`│  Name    : ${toName}`);
-  console.log(`│  Hackathon: ${hackathonName}`);
-  console.log(`│  Days left: ${daysLabel}`);
-  console.log(`│  Register : ${registrationUrl}`);
-  console.log('└─────────────────────────────────────────────────────┘\n');
+  await sendBrevoEmail({
+    toEmail,
+    toName,
+    subject,
+    textContent,
+    htmlContent,
+  });
 }
