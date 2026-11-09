@@ -58,6 +58,23 @@ export const env = {
   BREVO_API_KEY: process.env.BREVO_API_KEY ?? '',
 
   EMAIL_FROM: process.env.EMAIL_FROM ?? '',
+};
+
+// ── Warn about missing email config at startup (dev only) ───────────
+if (nodeEnvironment !== 'test') {
+  if (!process.env.BREVO_API_KEY) {
+    console.warn(
+      '[Config Warning] BREVO_API_KEY is not set — password-reset and reminder emails will fail. ' +
+      'Add it to your .env file (see .env.example).',
+    );
+  }
+  if (!process.env.EMAIL_FROM) {
+    console.warn(
+      '[Config Warning] EMAIL_FROM is not set — password-reset and reminder emails will fail. ' +
+      'Add it to your .env file (see .env.example).',
+    );
+  }
+}
 
   // ── SMTP configuration — retained for compatibility ────────
   SMTP_HOST: process.env.SMTP_HOST,

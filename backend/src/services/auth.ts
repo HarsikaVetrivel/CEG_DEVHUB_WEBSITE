@@ -128,7 +128,27 @@ export const forgotPassword = async (email: string) => {
     expiresAt: new Date(Date.now() + 60 * 60 * 1000), // 1 hour
   });
 
-  await sendPasswordResetEmail(user.email, user.fullName, rawToken);
+  // Fire-and-forget: dispatch the email asynchronously so the HTTP response
+  // is returned to the client immediately without waiting for the Brevo API.
+  sendPasswordResetEmail(user.email, user.fullName, rawToken).catch((emailError) => {
+    // Log the failure server-side so developers can diagnose misconfigured
+    // email credentials without leaking anything to the client.
+    console.error(
+      '[forgotPassword] Failed to send password-reset email to',
+      user.email,
+      ':',
+      emailError instanceof Error ? emailError.message : emailError,
+    );
+    // In development, print the reset URL to the console so the flow can
+    // still be tested without real email credentials.
+    if (process.env.NODE_ENV !== 'production') {
+      const appUrl = (process.env.APP_URL ?? 'http://localhost:5173').replace(/\/+$/, '');
+      console.warn(
+        '[DEV] Password-reset URL (use this to test locally):',
+        `${appUrl}/reset-password?token=${encodeURIComponent(rawToken)}`,
+      );
+    }
+  });
 };
 
 /**
