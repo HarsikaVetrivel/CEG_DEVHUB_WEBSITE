@@ -363,6 +363,7 @@ router.get('/teammate-discovery', async (req, res, next) => {
       { hackathonId: parsed.data.hackathonId, skill: parsed.data.skill },
       parsed.data.page,
       parsed.data.limit,
+      req.user!.id,
     );
     return res.json({ success: true, data: result });
   } catch (error) { return next(error); }

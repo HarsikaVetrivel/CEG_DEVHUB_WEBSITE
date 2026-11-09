@@ -111,16 +111,20 @@ export const getMyTeamRequests = async (creatorId: string, page: number, limit: 
   return { items: result?.items ?? [], pagination: { page, limit, total, totalPages: Math.ceil(total / limit), hasNextPage: page * limit < total, hasPreviousPage: page > 1 } };
 };
 
-/** Browses all OPEN team requests with optional hackathonId / skill filters. */
+/** Browses all OPEN team requests with optional hackathonId / skill filters.
+ *  Excludes requests created by the viewing user (excludeUserId). */
 export const browseTeamRequests = async (
   filters: { hackathonId?: string; skill?: string },
   page: number,
   limit: number,
+  excludeUserId?: string,
 ) => {
   const skip = (page - 1) * limit;
   const match: Record<string, unknown> = { status: 'OPEN' };
   if (filters.hackathonId) match['hackathonId'] = new mongoose.Types.ObjectId(filters.hackathonId);
   if (filters.skill) match['skillsNeeded'] = { $regex: filters.skill, $options: 'i' };
+  if (excludeUserId && mongoose.isValidObjectId(excludeUserId))
+    match['creatorId'] = { $ne: new mongoose.Types.ObjectId(excludeUserId) };
 
   const [result] = await TeamRequest.aggregate([
     { $match: match },
