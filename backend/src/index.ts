@@ -5,6 +5,7 @@ import { env } from './config/env.js';
 import app from './app.js';
 import { startReminderScheduler } from './services/reminders.js';
 import { startCleanupScheduler } from './services/cleanup.js';
+import { startSheetSyncScheduler } from './services/sheetSync.js';
 
 const startServer = async () => {
   await connectDatabase();
@@ -13,6 +14,7 @@ const startServer = async () => {
     console.log(`Server listening on http://localhost:${env.PORT}`);
     startReminderScheduler();
     startCleanupScheduler();
+    startSheetSyncScheduler();
   });
 };
 

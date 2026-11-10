@@ -58,6 +58,17 @@ export const env = {
   BREVO_API_KEY: process.env.BREVO_API_KEY ?? '',
 
   EMAIL_FROM: process.env.EMAIL_FROM ?? '',
+
+  // ── Google Sheets sync configuration ───────────────────────
+  // Set GOOGLE_SHEET_ID to the spreadsheet ID and
+  // GOOGLE_SERVICE_ACCOUNT_KEY_JSON to the full service-account key JSON.
+  // Leave blank to disable the sheet sync job.
+  GOOGLE_SHEET_ID: process.env.GOOGLE_SHEET_ID ?? '',
+
+  GOOGLE_SERVICE_ACCOUNT_KEY_JSON: process.env.GOOGLE_SERVICE_ACCOUNT_KEY_JSON ?? '',
+
+  // How often to poll the sheet (default: 5 minutes)
+  SHEET_SYNC_INTERVAL_MS: Number(process.env.SHEET_SYNC_INTERVAL_MS ?? 5 * 60_000),
 };
 
 // ── Warn about missing email config at startup (dev only) ───────────
@@ -74,20 +85,10 @@ if (nodeEnvironment !== 'test') {
       'Add it to your .env file (see .env.example).',
     );
   }
+  if (!process.env.GOOGLE_SHEET_ID || !process.env.GOOGLE_SERVICE_ACCOUNT_KEY_JSON) {
+    console.warn(
+      '[Config Warning] GOOGLE_SHEET_ID or GOOGLE_SERVICE_ACCOUNT_KEY_JSON is not set — ' +
+      'Google Sheet hackathon sync is disabled.',
+    );
+  }
 }
-
-  // ── SMTP configuration — retained for compatibility ────────
-  SMTP_HOST: process.env.SMTP_HOST,
-
-  SMTP_PORT: Number(process.env.SMTP_PORT ?? 587),
-
-  SMTP_SECURE: process.env.SMTP_SECURE === 'true',
-
-  SMTP_USER: process.env.SMTP_USER,
-
-  SMTP_PASS: process.env.SMTP_PASS,
-
-  SMTP_FROM:
-    process.env.SMTP_FROM ??
-    'CEG DEV HUB <noreply@cegdevhub.local>',
-};
